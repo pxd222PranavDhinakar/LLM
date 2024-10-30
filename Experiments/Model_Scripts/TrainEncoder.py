@@ -137,64 +137,68 @@ class TrainingTracker:
         torch.save(save_dict, save_path)
 
 def train_model(model, train_loader, test_loader, criterion, optimizer, params, save_dir='trained_models'):
-    # Set device based on parameter
+    # Set device
     device = torch.device('cuda' if params['use_gpu'] and torch.cuda.is_available() else 'cpu')
-    # Print device being used
-    print(f"Using device: {device}")
+    print(f"\nUsing device: {device}")
     if device.type == 'cuda':
         print(f"GPU Device: {torch.cuda.get_device_name(0)}")
         print(f"Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
     
-    # Move model to device
+    # Move model and criterion to device
     model = model.to(device)
     criterion = criterion.to(device)
     
-    
-    # Initialize training tracker
+    # Initialize tracking
     chars_to_track = [str(i) for i in range(10)] + ['+', '=']
     tracker = TrainingTracker(model, chars_to_track)
-    
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    
     best_accuracy = 0
     total_steps = 0
     
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
     for epoch in range(params['num_epochs']):
+        # Training phase
         model.train()
         total_loss = 0
         correct_predictions = 0
         total_predictions = 0
+        start_time = time.time()
         
         progress_bar = tqdm(enumerate(train_loader), total=len(train_loader),
                           desc=f"Epoch {epoch+1}/{params['num_epochs']}")
         
         for batch_idx, (inputs, targets) in progress_bar:
+            # Move data to device
             inputs, targets = inputs.to(device), targets.to(device)
             
+            # Forward pass
             optimizer.zero_grad()
             outputs = model(inputs)
+            
+            # Calculate loss
             loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
+            
+            # Backward pass
             loss.backward()
             optimizer.step()
             
+            # Update metrics
             total_loss += loss.item()
-            
-            # Calculate accuracy
             _, predicted = outputs.max(dim=-1)
             non_pad_mask = targets.ne(train_loader.dataset.vocab['<PAD>'])
             correct_predictions += (predicted[non_pad_mask] == targets[non_pad_mask]).sum().item()
             total_predictions += non_pad_mask.sum().item()
+            
+            # Store embeddings and loss
+            if total_steps % params['log_interval'] == 0:
+                tracker.store_state(total_steps, loss.item())
             
             # Update progress bar
             progress_bar.set_postfix({
                 'loss': f"{loss.item():.4f}",
                 'acc': f"{correct_predictions/total_predictions:.4f}"
             })
-            
-            # Store training state
-            if total_steps % params['log_interval'] == 0:
-                tracker.store_state(total_steps, loss.item())
             
             # Save checkpoint
             if total_steps % params['save_interval'] == 0:
@@ -206,13 +210,35 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
         # Calculate epoch statistics
         avg_loss = total_loss / len(train_loader)
         train_accuracy = correct_predictions / total_predictions
+        epoch_time = time.time() - start_time
         
-        # Evaluate on test set
-        test_accuracy = evaluate_model(model, test_loader, device)
+        # Evaluation phase
+        model.eval()
+        test_loss = 0
+        correct = 0
+        total = 0
         
-        print(f'\nEpoch {epoch+1}/{params["num_epochs"]}:')
+        with torch.no_grad():
+            for inputs, targets in test_loader:
+                inputs, targets = inputs.to(device), targets.to(device)
+                outputs = model(inputs)
+                
+                # Calculate test loss
+                loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
+                test_loss += loss.item()
+                
+                # Calculate accuracy
+                _, predicted = outputs.max(dim=-1)
+                non_pad_mask = targets.ne(test_loader.dataset.vocab['<PAD>'])
+                correct += (predicted[non_pad_mask] == targets[non_pad_mask]).sum().item()
+                total += non_pad_mask.sum().item()
+        
+        test_accuracy = correct / total
+        avg_test_loss = test_loss / len(test_loader)
+        
+        print(f'\nEpoch {epoch+1}/{params["num_epochs"]} - Time: {epoch_time:.2f}s')
         print(f'Train Loss: {avg_loss:.4f}, Train Accuracy: {train_accuracy:.4f}')
-        print(f'Test Accuracy: {test_accuracy:.4f}')
+        print(f'Test Loss: {avg_test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}')
         
         # Save best model
         if test_accuracy > best_accuracy:
@@ -220,11 +246,12 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
             save_checkpoint(model, optimizer, total_steps, 
                           os.path.join(save_dir, 'best_model.pth'))
             print(f'New best model saved with accuracy: {best_accuracy:.4f}')
+        
+        print('-' * 60)
     
-    # Save final model and training history
+    # Save final model and history
     final_model_path = os.path.join(save_dir, 'final_model.pth')
     history_path = os.path.join(save_dir, 'training_history.pth')
-    
     save_checkpoint(model, optimizer, total_steps, final_model_path)
     tracker.save_histories(history_path)
     
