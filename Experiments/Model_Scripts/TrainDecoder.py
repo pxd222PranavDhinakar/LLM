@@ -45,6 +45,9 @@ class AdditionDataset(Dataset):
         self.vocab = {str(i): i for i in range(10)}
         self.vocab.update({'+': 10, '=': 11, '<PAD>': 12, '<EOS>': 13})
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
+        # Calculate maximum possible sequence length
+        # For two numbers of max_length digits each, plus operators and result
+        self.max_seq_length = (max_length * 2) + 3  # 2 numbers + '+' + '=' + possible carry
         self.data = self.generate_data()
         self.device = torch.device('cuda' if HYPERPARAMETERS['use_gpu'] and torch.cuda.is_available() else 'cpu')
 
@@ -62,7 +65,11 @@ class AdditionDataset(Dataset):
         return [self.vocab[c] for c in s if c in self.vocab]
 
     def pad_sequence(self, seq, max_length):
-        return seq + [self.vocab['<PAD>']] * (max_length - len(seq))
+        # Ensure sequence is not longer than max_length
+        seq = seq[:max_length]
+        # Pad with PAD tokens
+        padded = seq + [self.vocab['<PAD>']] * (max_length - len(seq))
+        return padded
 
     def generate_data(self):
         data = []
@@ -75,20 +82,20 @@ class AdditionDataset(Dataset):
                     num2 = self.generate_number(j)
                     result = num1 + num2
                     
-                    # For decoder training, we prepare shifted sequences
+                    # Create input and target sequences
                     input_str = f"{num1:0{i}}+{num2:0{j}}="
                     input_str = input_str[::-1]  # Reverse string
                     target_str = f"{result}"[::-1]
                     
-                    # Prepare input sequence (without last token)
+                    # Tokenize sequences
                     input_tokens = self.tokenize(input_str) + self.tokenize(target_str)[:-1]
-                    # Prepare target sequence (shifted right by one position)
                     target_tokens = self.tokenize(target_str) + [self.vocab['<EOS>']]
                     
-                    max_seq_length = self.max_length * 2 + 2
-                    input_padded = self.pad_sequence(input_tokens, max_seq_length)
-                    target_padded = self.pad_sequence(target_tokens, max_seq_length)
+                    # Pad sequences to fixed length
+                    input_padded = self.pad_sequence(input_tokens, self.max_seq_length)
+                    target_padded = self.pad_sequence(target_tokens, self.max_seq_length)
                     
+                    # Convert to tensors
                     input_tensor = torch.tensor(input_padded, dtype=torch.long)
                     target_tensor = torch.tensor(target_padded, dtype=torch.long)
                     
