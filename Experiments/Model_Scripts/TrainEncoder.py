@@ -10,52 +10,58 @@ import random
 import os
 from ArithmeticEncoder import create_arithmetic_transformer
 
-# Hyperparameters - Edit these as needed
+# Hyperparameters
 HYPERPARAMETERS = {
     # Model Architecture
-    'vocab_size': 14,          # Size of vocabulary (digits + special tokens)
-    'embed_size': 64,          # Dimension of embeddings
-    'num_heads': 2,            # Number of attention heads
-    'ff_dim': 256,            # Feed-forward dimension (4x embed_size)
-    'num_layers': 2,          # Number of transformer layers
-    'max_length': 42,         # Maximum sequence length
-    'dropout': 0.1,           # Dropout rate
+    'vocab_size': 14,
+    'embed_size': 64,
+    'num_heads': 2,
+    'ff_dim': 256,
+    'num_layers': 2,
+    'max_length': 42,
+    'dropout': 0.1,
     
     # Training Parameters
-    'batch_size': 32,         # Batch size
-    'num_epochs': 10,         # Number of epochs
-    'learning_rate': 0.001,   # Learning rate
-    'train_samples': 200_000, # Number of training samples
-    'test_samples': 1_000,    # Number of test samples
-    'max_digit_length': 20,   # Maximum length of operands
+    'batch_size': 32,
+    'num_epochs': 10,
+    'learning_rate': 0.001,
+    'train_samples': 200_000,
+    'test_samples': 1_000,
+    'max_digit_length': 20,
     
     # Device Settings
-    'use_gpu': True,  # Set to False to force CPU usage
+    'use_gpu': True,
     
     # Save and Log Settings
-    'model_save_path': 'trained_models',  # Directory to save models
-    'log_interval': 100,      # Steps between logging
-    'save_interval': 1000,    # Steps between saving model checkpoints
+    'model_save_path': 'trained_models',
+    'log_interval': 500,  # Increased from 100 to reduce overhead
+    'save_interval': 1000,
 }
 
 class AdditionDataset(Dataset):
     def __init__(self, max_length, num_samples):
+        super().__init__()
         self.max_length = max_length
         self.num_samples = num_samples
-        # Define vocabulary: 0-9 for digits, 10 for '+', 11 for '=', 12 for padding, 13 for EOS
+        
+        # Define vocabulary
         self.vocab = {str(i): i for i in range(10)}
         self.vocab.update({'+': 10, '=': 11, '<PAD>': 12, '<EOS>': 13})
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
+        
+        # Set device and sequence length once
+        self.device = torch.device('cuda' if HYPERPARAMETERS['use_gpu'] and 
+                                 torch.cuda.is_available() else 'cpu')
+        self.max_seq_length = (max_length * 2) + 3  # Account for operators and carry
+        
+        # Generate data
         self.data = self.generate_data()
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        # Modify the return to specify device
-        input_tensor, target_tensor = self.data[idx]
-        device = torch.device('cuda' if HYPERPARAMETERS['use_gpu'] and torch.cuda.is_available() else 'cpu')
-        return input_tensor.to(device), target_tensor.to(device)
+        return self.data[idx]  # Data is already on correct device
 
     def generate_number(self, length):
         return random.randint(10**(length-1), 10**length - 1)
@@ -63,8 +69,9 @@ class AdditionDataset(Dataset):
     def tokenize(self, s):
         return [self.vocab[c] for c in s if c in self.vocab]
 
-    def pad_sequence(self, seq, max_length):
-        return seq + [self.vocab['<PAD>']] * (max_length - len(seq))
+    def pad_sequence(self, seq):
+        seq = seq[:self.max_seq_length]
+        return seq + [self.vocab['<PAD>']] * (self.max_seq_length - len(seq))
 
     def generate_data(self):
         data = []
@@ -78,18 +85,20 @@ class AdditionDataset(Dataset):
                     result = num1 + num2
                     
                     input_str = f"{num1:0{i}}+{num2:0{j}}="
-                    input_str = input_str[::-1]  # Reverse string
+                    input_str = input_str[::-1]
                     target_str = f"{result}"[::-1]
                     
                     input_tokens = self.tokenize(input_str)
                     target_tokens = self.tokenize(target_str) + [self.vocab['<EOS>']]
                     
-                    max_seq_length = self.max_length * 2 + 2
-                    input_padded = self.pad_sequence(input_tokens, max_seq_length)
-                    target_padded = self.pad_sequence(target_tokens, max_seq_length)
+                    input_padded = self.pad_sequence(input_tokens)
+                    target_padded = self.pad_sequence(target_tokens)
                     
-                    input_tensor = torch.tensor(input_padded, dtype=torch.long)
-                    target_tensor = torch.tensor(target_padded, dtype=torch.long)
+                    # Move tensors to device immediately
+                    input_tensor = torch.tensor(input_padded, dtype=torch.long, 
+                                             device=self.device)
+                    target_tensor = torch.tensor(target_padded, dtype=torch.long, 
+                                              device=self.device)
                     
                     data.append((input_tensor, target_tensor))
         
@@ -98,53 +107,100 @@ class AdditionDataset(Dataset):
 
 class TrainingTracker:
     def __init__(self, model, chars_to_track):
+        self.model = model
+        self.chars_to_track = chars_to_track
+        self.char_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        self.device = next(model.parameters()).device
+        
+        # Initialize storage
         self.embedding_history = []
         self.qkv_history = []
         self.loss_history = []
         self.global_steps = []
-        self.chars_to_track = chars_to_track
-        self.char_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]  # Indices for digits + operators
-        self.model = model
-        self.device = torch.device('cuda' if HYPERPARAMETERS['use_gpu'] and torch.cuda.is_available() else 'cpu')
-
         
-    def store_state(self, step, loss):
-        # Ensure we detach and move to CPU before converting to numpy
-        current_embeddings = self.model.embedding.embed.weight[self.char_indices].detach().cpu().numpy()
-        self.embedding_history.append(current_embeddings)
+        # Pre-allocate CPU buffers
+        self.embedding_buffer = torch.zeros(
+            len(self.char_indices), 
+            model.embedding.embed.embedding_dim,
+            pin_memory=True
+        )
         
-        # Store Q, K, V weights from first attention head of first layer
-        first_block = self.model.blocks[0]
-        first_head = first_block.attention.heads[0]
-        qkv_weights = {
-            'query': first_head.query.weight.detach().cpu().numpy(),
-            'key': first_head.key.weight.detach().cpu().numpy(),
-            'value': first_head.value.weight.detach().cpu().numpy()
+        # Pre-allocate QKV buffers
+        head_size = model.blocks[0].attention.heads[0].key.weight.size(0)
+        embed_size = model.blocks[0].attention.heads[0].key.weight.size(1)
+        self.qkv_buffers = {
+            'query': torch.zeros(head_size, embed_size, pin_memory=True),
+            'key': torch.zeros(head_size, embed_size, pin_memory=True),
+            'value': torch.zeros(head_size, embed_size, pin_memory=True)
         }
-        self.qkv_history.append(qkv_weights)
         
+        # Create events for synchronization
+        self.copy_event = torch.cuda.Event()
+        self.compute_event = torch.cuda.Event()
+
+    @torch.no_grad()
+    def store_state(self, step, loss):
+        # Record completion of compute
+        self.compute_event.record()
+        
+        # Copy embeddings
+        self.embedding_buffer.copy_(
+            self.model.embedding.embed.weight[self.char_indices].detach(),
+            non_blocking=True
+        )
+        
+        # Copy QKV weights
+        first_head = self.model.blocks[0].attention.heads[0]
+        self.qkv_buffers['query'].copy_(first_head.query.weight.detach(), 
+                                      non_blocking=True)
+        self.qkv_buffers['key'].copy_(first_head.key.weight.detach(), 
+                                    non_blocking=True)
+        self.qkv_buffers['value'].copy_(first_head.value.weight.detach(), 
+                                      non_blocking=True)
+        
+        # Record completion of copy
+        self.copy_event.record()
+        
+        # Store values (will be processed after sync)
+        self.embedding_history.append(self.embedding_buffer.clone())
+        self.qkv_history.append({
+            'query': self.qkv_buffers['query'].clone(),
+            'key': self.qkv_buffers['key'].clone(),
+            'value': self.qkv_buffers['value'].clone()
+        })
         self.loss_history.append(loss)
         self.global_steps.append(step)
-    
+
+    def synchronize(self):
+        # Wait for copies to complete
+        self.copy_event.synchronize()
+
     def save_histories(self, save_path):
+        # Ensure all operations are complete
+        self.synchronize()
+        
+        # Convert to numpy arrays efficiently
+        embedding_history_np = torch.stack(self.embedding_history).cpu().numpy()
+        qkv_history_np = [{
+            'query': qkv['query'].cpu().numpy(),
+            'key': qkv['key'].cpu().numpy(),
+            'value': qkv['value'].cpu().numpy()
+        } for qkv in self.qkv_history]
+        
         save_dict = {
-            'embedding_history': np.array(self.embedding_history),
-            'qkv_history': self.qkv_history,
+            'embedding_history': embedding_history_np,
+            'qkv_history': qkv_history_np,
             'loss_history': np.array(self.loss_history),
             'global_steps': np.array(self.global_steps),
             'chars_to_track': self.chars_to_track
         }
         torch.save(save_dict, save_path)
 
-def train_model(model, train_loader, test_loader, criterion, optimizer, params, save_dir='trained_models'):
-    # Set device
-    device = torch.device('cuda' if params['use_gpu'] and torch.cuda.is_available() else 'cpu')
-    print(f"\nUsing device: {device}")
-    if device.type == 'cuda':
-        print(f"GPU Device: {torch.cuda.get_device_name(0)}")
-        print(f"Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
-    
-    # Move model and criterion to device
+def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
+                save_dir='trained_models'):
+    # Setup device
+    device = torch.device('cuda' if params['use_gpu'] and torch.cuda.is_available() 
+                         else 'cpu')
     model = model.to(device)
     criterion = criterion.to(device)
     
@@ -154,8 +210,8 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
     best_accuracy = 0
     total_steps = 0
     
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    # Create save directory
+    os.makedirs(save_dir, exist_ok=True)
 
     for epoch in range(params['num_epochs']):
         # Training phase
@@ -169,17 +225,12 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
                           desc=f"Epoch {epoch+1}/{params['num_epochs']}")
         
         for batch_idx, (inputs, targets) in progress_bar:
-            # Move data to device
-            inputs, targets = inputs.to(device), targets.to(device)
-            
             # Forward pass
-            optimizer.zero_grad()
             outputs = model(inputs)
-            
-            # Calculate loss
             loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
             
             # Backward pass
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             
@@ -187,14 +238,19 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
             total_loss += loss.item()
             _, predicted = outputs.max(dim=-1)
             non_pad_mask = targets.ne(train_loader.dataset.vocab['<PAD>'])
-            correct_predictions += (predicted[non_pad_mask] == targets[non_pad_mask]).sum().item()
+            correct = (predicted[non_pad_mask] == targets[non_pad_mask]).sum().item()
+            correct_predictions += correct
             total_predictions += non_pad_mask.sum().item()
             
-            # Store embeddings and loss
+            # Store state if needed
             if total_steps % params['log_interval'] == 0:
                 tracker.store_state(total_steps, loss.item())
             
-            # Update progress bar
+            # Periodic synchronization
+            if total_steps % (params['log_interval'] * 10) == 0:
+                tracker.synchronize()
+            
+            # Update progress
             progress_bar.set_postfix({
                 'loss': f"{loss.item():.4f}",
                 'acc': f"{correct_predictions/total_predictions:.4f}"
@@ -202,8 +258,11 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
             
             # Save checkpoint
             if total_steps % params['save_interval'] == 0:
-                checkpoint_path = os.path.join(save_dir, f'checkpoint_step_{total_steps}.pth')
-                save_checkpoint(model, optimizer, total_steps, checkpoint_path)
+                torch.save({
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'step': total_steps,
+                }, os.path.join(save_dir, f'checkpoint_step_{total_steps}.pth'))
             
             total_steps += 1
         
@@ -220,22 +279,22 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
         
         with torch.no_grad():
             for inputs, targets in test_loader:
-                inputs, targets = inputs.to(device), targets.to(device)
                 outputs = model(inputs)
-                
-                # Calculate test loss
-                loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
+                loss = criterion(outputs.view(-1, outputs.size(-1)), 
+                               targets.view(-1))
                 test_loss += loss.item()
                 
-                # Calculate accuracy
                 _, predicted = outputs.max(dim=-1)
                 non_pad_mask = targets.ne(test_loader.dataset.vocab['<PAD>'])
-                correct += (predicted[non_pad_mask] == targets[non_pad_mask]).sum().item()
+                correct += (predicted[non_pad_mask] == 
+                          targets[non_pad_mask]).sum().item()
                 total += non_pad_mask.sum().item()
         
+        # Calculate test metrics
         test_accuracy = correct / total
         avg_test_loss = test_loss / len(test_loader)
         
+        # Print epoch results
         print(f'\nEpoch {epoch+1}/{params["num_epochs"]} - Time: {epoch_time:.2f}s')
         print(f'Train Loss: {avg_loss:.4f}, Train Accuracy: {train_accuracy:.4f}')
         print(f'Test Loss: {avg_test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}')
@@ -243,61 +302,27 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
         # Save best model
         if test_accuracy > best_accuracy:
             best_accuracy = test_accuracy
-            save_checkpoint(model, optimizer, total_steps, 
-                          os.path.join(save_dir, 'best_model.pth'))
+            save_path = os.path.join(save_dir, 'best_model.pth')
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'accuracy': best_accuracy,
+                'step': total_steps
+            }, save_path)
             print(f'New best model saved with accuracy: {best_accuracy:.4f}')
         
         print('-' * 60)
     
-    # Save final model and history
-    final_model_path = os.path.join(save_dir, 'final_model.pth')
-    history_path = os.path.join(save_dir, 'training_history.pth')
-    save_checkpoint(model, optimizer, total_steps, final_model_path)
-    tracker.save_histories(history_path)
-    
+    # Save final state
+    tracker.save_histories(os.path.join(save_dir, 'training_history.pth'))
     return model, tracker
 
-def save_checkpoint(model, optimizer, step, path):
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'step': step,
-        'model_config': {
-            'vocab_size': model.embedding.embed.num_embeddings,
-            'embed_size': model.embedding.embed.embedding_dim,
-            'num_heads': len(model.blocks[0].attention.heads),
-            'ff_dim': model.blocks[0].feed_forward.net[0].out_features,
-            'num_layers': len(model.blocks),
-            'max_length': model.embedding.max_length,
-            'dropout': model.blocks[0].attention.dropout.p,
-        }
-    }, path)
-
-def evaluate_model(model, dataloader, device):
-    model.eval()
-    correct = 0
-    total = 0
-    
-    with torch.no_grad():
-        for inputs, targets in dataloader:
-            # No need to move to device here as it's handled in the Dataset class
-            outputs = model(inputs)
-            _, predicted = outputs.max(dim=-1)
-            non_pad_mask = targets.ne(dataloader.dataset.vocab['<PAD>'])
-            correct += (predicted[non_pad_mask] == targets[non_pad_mask]).sum().item()
-            total += non_pad_mask.sum().item()
-    
-    return correct / total
-
 def main():
-    # Set device
-    device = torch.device('cuda' if HYPERPARAMETERS['use_gpu'] and torch.cuda.is_available() else 'cpu')
-    
-    # Print device information at start of training
-    print(f"\nInitializing training with device: {device}")
-    if device.type == 'cuda':
-        print(f"GPU Device: {torch.cuda.get_device_name(0)}")
-        print(f"Available GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+    # Set random seed for reproducibility
+    torch.manual_seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
     
     # Create datasets
     train_dataset = AdditionDataset(HYPERPARAMETERS['max_digit_length'], 
@@ -306,9 +331,10 @@ def main():
                                  HYPERPARAMETERS['test_samples'])
     
     # Create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=HYPERPARAMETERS['batch_size'], 
-                            shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=HYPERPARAMETERS['batch_size'])
+    train_loader = DataLoader(train_dataset, batch_size=HYPERPARAMETERS['batch_size'],
+                            shuffle=True, pin_memory=False)  # Already on device
+    test_loader = DataLoader(test_dataset, batch_size=HYPERPARAMETERS['batch_size'],
+                           pin_memory=False)  # Already on device
     
     # Create model
     model = create_arithmetic_transformer(
