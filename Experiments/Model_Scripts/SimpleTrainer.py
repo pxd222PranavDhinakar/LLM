@@ -8,7 +8,7 @@ from tqdm import tqdm
 import time
 import random
 import os
-from Model_Scripts.ArithmeticTransformer import create_arithmetic_transformer
+from ArithmeticTransformer import create_arithmetic_transformer
 
 '''
 # Current Model (~105K parameters)
