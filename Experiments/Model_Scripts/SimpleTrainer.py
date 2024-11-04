@@ -82,19 +82,19 @@ TRAINING_CONFIGS = {
 
 # Hyperparameters
 HYPERPARAMETERS = {
-    # Model Architecture: SMALL
+    # Model Architecture: MEDIUM
     'vocab_size': 14,
-    'embed_size': 64,
-    'num_heads': 2,
-    'ff_dim': 256,
-    'num_layers': 2,
+    'embed_size': 256,
+    'num_heads': 4,
+    'ff_dim': 1024,
+    'num_layers': 4,
     'max_length': 42,
     'dropout': 0.1,
     
     # Training Parameters
-    'batch_size': 32,
+    'batch_size': 64,
     'num_epochs': 10,
-    'learning_rate': 1e-3,
+    'learning_rate': 5e-4,
     'train_samples': 200_000,
     'test_samples': 1_000,
     'max_digit_length': 20,
@@ -238,7 +238,7 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params):
         # Save best model
         if test_accuracy > best_accuracy:
             best_accuracy = test_accuracy
-            save_path = os.path.join(params['model_save_path'], 'small_addition_model.pth')
+            save_path = os.path.join(params['model_save_path'], 'medium_addition_model.pth')
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
