@@ -238,7 +238,7 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params):
         # Save best model
         if test_accuracy > best_accuracy:
             best_accuracy = test_accuracy
-            save_path = os.path.join(params['model_save_path'], 'medium_addition_model.pth')
+            save_path = os.path.join(params['model_save_path'], 'large_addition_model.pth')
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
