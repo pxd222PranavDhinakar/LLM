@@ -10,15 +10,81 @@ import random
 import os
 from Model_Scripts.ArithmeticTransformer import create_arithmetic_transformer
 
+'''
+# Current Model (~105K parameters)
+SMALL_MODEL = {
+    'vocab_size': 14,
+    'embed_size': 64,
+    'num_heads': 2,
+    'ff_dim': 256,
+    'num_layers': 2,
+    'max_length': 42,
+    'dropout': 0.1,
+}
+
+# Medium Model (~1.8M parameters)
+MEDIUM_MODEL = {
+    'vocab_size': 14,
+    'embed_size': 256,
+    'num_heads': 4,
+    'ff_dim': 1024,
+    'num_layers': 4,
+    'max_length': 42,
+    'dropout': 0.1,
+}
+
+# Large Model (~11M parameters)
+LARGE_MODEL = {
+    'vocab_size': 14,
+    'embed_size': 512,
+    'num_heads': 8,
+    'ff_dim': 2048,
+    'num_layers': 8,
+    'max_length': 42,
+    'dropout': 0.15,
+}
+
+# XLarge Model (~45M parameters)
+XLARGE_MODEL = {
+    'vocab_size': 14,
+    'embed_size': 1024,
+    'num_heads': 16,
+    'ff_dim': 4096,
+    'num_layers': 12,
+    'dropout': 0.2,
+    'max_length': 42,
+}
+
+# Training parameters should also be adjusted per model size
+TRAINING_CONFIGS = {
+    'SMALL': {
+        'batch_size': 32,
+        'learning_rate': 1e-3,
+    },
+    'MEDIUM': {
+        'batch_size': 64,
+        'learning_rate': 5e-4,
+    },
+    'LARGE': {
+        'batch_size': 128,
+        'learning_rate': 3e-4,
+    },
+    'XLARGE': {
+        'batch_size': 256,
+        'learning_rate': 1e-4,
+    }
+}
+'''
+
 # Hyperparameters
 HYPERPARAMETERS = {
     # Model Architecture
     'vocab_size': 14,
-    'embed_size': 64,
-    'num_heads': 2,
-    'ff_dim': 256,        # 4x embed_size
-    'num_layers': 2,
-    'max_length': 42,     # For two numbers of max 20 digits each + operators
+    'embed_size': 256,
+    'num_heads': 4,
+    'ff_dim': 1024,
+    'num_layers': 4,
+    'max_length': 42,
     'dropout': 0.1,
     
     # Training Parameters
