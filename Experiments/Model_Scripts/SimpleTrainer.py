@@ -13,6 +13,7 @@ from ArithmeticTransformer import create_arithmetic_transformer
 '''
 # Current Model (~105K parameters)
 SMALL_MODEL = {
+    # Model Architecture: SMALL
     'vocab_size': 14,
     'embed_size': 64,
     'num_heads': 2,
@@ -24,6 +25,7 @@ SMALL_MODEL = {
 
 # Medium Model (~1.8M parameters)
 MEDIUM_MODEL = {
+    # Model Architecture: MEDIUM
     'vocab_size': 14,
     'embed_size': 256,
     'num_heads': 4,
@@ -35,6 +37,7 @@ MEDIUM_MODEL = {
 
 # Large Model (~11M parameters)
 LARGE_MODEL = {
+    # Model Architecture: LARGE
     'vocab_size': 14,
     'embed_size': 512,
     'num_heads': 8,
@@ -46,6 +49,7 @@ LARGE_MODEL = {
 
 # XLarge Model (~45M parameters)
 XLARGE_MODEL = {
+    # Model Architecture: XLARGE
     'vocab_size': 14,
     'embed_size': 1024,
     'num_heads': 16,
@@ -78,19 +82,19 @@ TRAINING_CONFIGS = {
 
 # Hyperparameters
 HYPERPARAMETERS = {
-    # Model Architecture
+    # Model Architecture: SMALL
     'vocab_size': 14,
-    'embed_size': 256,
-    'num_heads': 4,
-    'ff_dim': 1024,
-    'num_layers': 4,
+    'embed_size': 64,
+    'num_heads': 2,
+    'ff_dim': 256,
+    'num_layers': 2,
     'max_length': 42,
     'dropout': 0.1,
     
     # Training Parameters
     'batch_size': 32,
     'num_epochs': 10,
-    'learning_rate': 0.001,
+    'learning_rate': 1e-3,
     'train_samples': 200_000,
     'test_samples': 1_000,
     'max_digit_length': 20,
@@ -234,12 +238,24 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params):
         # Save best model
         if test_accuracy > best_accuracy:
             best_accuracy = test_accuracy
+            save_path = os.path.join(params['model_save_path'], 'small_addition_model.pth')
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'accuracy': best_accuracy,
-            }, os.path.join(params['model_save_path'], 'best_model.pth'))
+                'model_config': {
+                    'vocab_size': params['vocab_size'],
+                    'embed_size': params['embed_size'],
+                    'num_heads': params['num_heads'],
+                    'ff_dim': params['ff_dim'],
+                    'num_layers': params['num_layers'],
+                    'max_length': params['max_length'],
+                    'dropout': params['dropout']
+                },
+                'vocab': train_loader.dataset.vocab,
+                'inv_vocab': train_loader.dataset.inv_vocab
+            }, save_path)
             print(f'New best model saved with accuracy: {best_accuracy:.4f}')
         
         print('-' * 60)
