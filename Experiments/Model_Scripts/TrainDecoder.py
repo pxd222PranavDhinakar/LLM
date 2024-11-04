@@ -9,7 +9,7 @@ from tqdm import tqdm
 import time
 import random
 import os
-from ArithmeticDecoder import create_arithmetic_decoder
+from ArithmeticTransformer import create_arithmetic_decoder
 
 # Hyperparameters - Edit these as needed
 HYPERPARAMETERS = {

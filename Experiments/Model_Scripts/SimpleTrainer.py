@@ -8,7 +8,7 @@ from tqdm import tqdm
 import time
 import random
 import os
-from ArithmeticEncoder import create_arithmetic_transformer
+from Model_Scripts.ArithmeticTransformer import create_arithmetic_transformer
 
 # Hyperparameters
 HYPERPARAMETERS = {
