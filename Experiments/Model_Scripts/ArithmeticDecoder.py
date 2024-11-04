@@ -36,8 +36,8 @@ class Head(nn.Module):
         att = (q @ k.transpose(-2, -1)) * self.scale
         
         # Create and apply causal mask
-        causal_mask = torch.triu(torch.ones(T, T, device=x.device), diagonal=1).bool()
-        att.masked_fill_(causal_mask, float('-inf'))
+        #causal_mask = torch.triu(torch.ones(T, T, device=x.device), diagonal=1).bool()
+        #att.masked_fill_(causal_mask, float('-inf'))
         
         # Apply softmax and dropout
         att = F.softmax(att, dim=-1)
