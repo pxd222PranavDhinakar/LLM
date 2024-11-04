@@ -1,0 +1,9 @@
+# Ignore all trained model directories
+*/trained_models/
+
+# Or specifically ignore this path
+Experiments/Model_Scripts/trained_models/
+Experiments/Model_Weights
+
+# If you want to ignore specific file types instead
+*.pth
