@@ -199,8 +199,11 @@ class TrainingTracker:
 def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
                 save_dir='trained_models'):
     # Setup device
-    device = torch.device('cuda' if params['use_gpu'] and torch.cuda.is_available() 
-                         else 'cpu')
+    device = torch.device('cuda' if params['use_gpu'] and torch.cuda.is_available() else 'cpu')
+    print(f"\nTraining on: {device}")
+    if device.type == 'cuda':
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        
     model = model.to(device)
     criterion = criterion.to(device)
     
