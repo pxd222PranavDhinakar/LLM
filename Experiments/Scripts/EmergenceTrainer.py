@@ -211,10 +211,12 @@ def main(model_id, num_layers, num_heads, embed_size, ff_dim):
     test_loader = DataLoader(test_dataset, batch_size=HYPERPARAMETERS["batch_size"])
     
     # Create model with the specified parameters
+    head_size = embed_size // num_heads
     model = create_arithmetic_transformer(
         vocab_size=HYPERPARAMETERS["vocab_size"],
         embed_size=embed_size,
         num_heads=num_heads,
+        head_size=head_size,
         ff_dim=ff_dim,
         num_layers=num_layers,
         max_length=HYPERPARAMETERS["max_length"],

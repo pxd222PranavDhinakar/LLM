@@ -129,9 +129,10 @@ class ArithmeticTransformer(nn.Module):
         return logits
 
 def create_arithmetic_transformer(
-    vocab_size, 
+    vocab_size,
     embed_size,
-    num_heads, 
+    num_heads,
+    head_size,
     ff_dim,
     num_layers,
     max_length,
@@ -139,11 +140,12 @@ def create_arithmetic_transformer(
 ):
     """
     A transformer model specialized for arithmetic operations.
-    
+
     Args:
         vocab_size (int): Size of the vocabulary (typically 14 for digits 0-9 plus special tokens)
         embed_size (int): Dimension of the embeddings
         num_heads (int): Number of attention heads
+        head_size (int): Size of each attention head
         ff_dim (int): Dimension of the feed-forward network
         num_layers (int): Number of transformer blocks
         max_length (int): Maximum sequence length
@@ -153,8 +155,12 @@ def create_arithmetic_transformer(
         vocab_size=vocab_size,
         embed_size=embed_size,
         num_heads=num_heads,
+        head_size=head_size,
         ff_dim=ff_dim,
         num_layers=num_layers,
         max_length=max_length,
         dropout=dropout
     )
+    
+    
+    
