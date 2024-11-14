@@ -1,4 +1,11 @@
 #!/bin/bash
+#SBATCH --job-name=arithmetic_models
+#SBATCH --output=output_%j.log
+#SBATCH --error=error_%j.log
+#SBATCH --partition=markov_gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem=8gb
+#SBATCH --time=24:00:00
 
 for model_id in {1..10}; do
     case $model_id in
@@ -14,5 +21,5 @@ for model_id in {1..10}; do
         10) num_layers=12; num_heads=12; embedding_size=768; ff_dim=1536 ;;
     esac
     
-    nohup python EmergenceTrainer.py --model_id $model_id --num_layers $num_layers --num_heads $num_heads --embedding_size $embedding_size --ff_dim $ff_dim &
+    python SimpleTrainer.py --model_id $model_id --num_layers $num_layers --num_heads $num_heads --embedding_size $embedding_size --ff_dim $ff_dim
 done
