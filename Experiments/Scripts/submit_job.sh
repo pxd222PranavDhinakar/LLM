@@ -35,5 +35,5 @@ for model_id in {250,500,750}; do
         750) num_layers=3; num_heads=4; embedding_size=224; ff_dim=448 ;;
     esac
     
-    python EmergenceTrainer.py --model_id $model_id --num_layers $num_heads --embedding_size $embedding_size --ff_dim $ff_dim
+    python EmergenceTrainer.py --model_id $model_id --num_layers $num_layers --num_heads $num_heads --embedding_size $embedding_size --ff_dim $ff_dim
 done
