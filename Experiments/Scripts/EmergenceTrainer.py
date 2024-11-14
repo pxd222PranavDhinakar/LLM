@@ -83,14 +83,20 @@ class AdditionDataset(Dataset):
         return data
 
 def train_model(model, train_loader, test_loader, criterion, optimizer, params, model_id):
-    device = torch.device('cuda' if params['use_gpu'] and torch.cuda.is_available() else 'cpu')
-    print(f"\nTraining on: {device}")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Training on: {device}")
     if device.type == 'cuda':
         print(f"GPU: {torch.cuda.get_device_name(0)}")
+        torch.cuda.set_device(0)
     
     model = model.to(device)
     criterion = criterion.to(device)
-    best_accuracy = 0
+
+    # Replace these lines:
+    # input_tensor = input_tensor.to(self.device)
+    # target_tensor = target_tensor.to(self.device)
+    input_tensor = input_tensor.to(device)
+    target_tensor = target_tensor.to(device)
     
     # Create save directory if it doesn't exist
     os.makedirs(params['model_save_path'], exist_ok=True)
