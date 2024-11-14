@@ -91,15 +91,10 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
     
     model = model.to(device)
     criterion = criterion.to(device)
-
-    # Replace these lines:
-    # input_tensor = input_tensor.to(self.device)
-    # target_tensor = target_tensor.to(self.device)
-    input_tensor = input_tensor.to(device)
-    target_tensor = target_tensor.to(device)
+    best_accuracy = 0.0
     
     # Create save directory if it doesn't exist
-    os.makedirs(params['model_save_path'], exist_ok=True)
+    os.makedirs("Emergence_Models", exist_ok=True)
     
     for epoch in range(params['num_epochs']):
         # Training phase
@@ -163,7 +158,7 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
         # Save best model
         if test_accuracy > best_accuracy:
             best_accuracy = test_accuracy
-            save_path = os.path.join(params['model_save_path'], 'large_addition_model.pth')
+            save_path = os.path.join("Emergence_Models", f"model_{model_id}.pth")
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -184,20 +179,8 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
             print(f'New best model saved with accuracy: {best_accuracy:.4f}')
         
         print('-' * 60)
-        
-    print(f'Training completed. Best test accuracy: {best_accuracy:.4f}')
-
-    # Save the trained model in the Emergence_Models directory
-    os.makedirs("Emergence_Models", exist_ok=True)
-    save_path = os.path.join("Emergence_Models", f"model_{model_id}.pth")
-    torch.save({
-        "model_config": params,
-        "model_state_dict": model.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict(),
-        "best_accuracy": best_accuracy,
-    }, save_path)
-    print(f"Model {model_id} saved at: {save_path}")
     
+    print(f'Training completed. Best test accuracy: {best_accuracy:.4f}')
     return model
 
 
