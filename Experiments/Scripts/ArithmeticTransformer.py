@@ -128,29 +128,31 @@ class ArithmeticTransformer(nn.Module):
         logits = self.fc_out(x)
         return logits
 
-def create_arithmetic_transformer(vocab_size=14, embed_size=64, num_heads=2, ff_dim=256, 
-                               num_layers=2, max_length=42, dropout=0.1):
+def create_arithmetic_transformer(
+    vocab_size, 
+    embed_size,
+    num_heads, 
+    ff_dim,
+    num_layers,
+    max_length,
+    dropout=0.1
+):
     """
-    Helper function to create an ArithmeticTransformer with default parameters.
+    A transformer model specialized for arithmetic operations.
     
     Args:
-        vocab_size (int): Vocabulary size (default: 14)
-        embed_size (int): Embedding dimension (default: 64)
-        num_heads (int): Number of attention heads (default: 2)
-        ff_dim (int): Feed-forward dimension (default: 256)
-        num_layers (int): Number of transformer layers (default: 2)
-        max_length (int): Maximum sequence length (default: 42)
+        vocab_size (int): Size of the vocabulary (typically 14 for digits 0-9 plus special tokens)
+        embed_size (int): Dimension of the embeddings
+        num_heads (int): Number of attention heads
+        ff_dim (int): Dimension of the feed-forward network
+        num_layers (int): Number of transformer blocks
+        max_length (int): Maximum sequence length
         dropout (float): Dropout rate (default: 0.1)
-        
-    Returns:
-        ArithmeticTransformer: The configured model
     """
-    head_size = embed_size // num_heads
     return ArithmeticTransformer(
         vocab_size=vocab_size,
         embed_size=embed_size,
         num_heads=num_heads,
-        head_size=head_size,
         ff_dim=ff_dim,
         num_layers=num_layers,
         max_length=max_length,

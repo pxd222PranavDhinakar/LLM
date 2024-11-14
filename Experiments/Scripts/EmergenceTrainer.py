@@ -201,7 +201,7 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
     return model
 
 
-def main(model_id, num_layers, num_heads, embedding_size, ff_dim):
+def main(model_id, num_layers, num_heads, embed_size, ff_dim):
     # Create datasets
     train_dataset = AdditionDataset(HYPERPARAMETERS["max_digit_length"], HYPERPARAMETERS["train_samples"])
     test_dataset = AdditionDataset(HYPERPARAMETERS["max_digit_length"], HYPERPARAMETERS["test_samples"])
@@ -213,10 +213,10 @@ def main(model_id, num_layers, num_heads, embedding_size, ff_dim):
     # Create model with the specified parameters
     model = create_arithmetic_transformer(
         vocab_size=HYPERPARAMETERS["vocab_size"],
-        num_layers=num_layers,
+        embed_size=embed_size,
         num_heads=num_heads,
-        embedding_size=embedding_size,
         ff_dim=ff_dim,
+        num_layers=num_layers,
         max_length=HYPERPARAMETERS["max_length"],
         dropout=HYPERPARAMETERS["dropout"]
     )
