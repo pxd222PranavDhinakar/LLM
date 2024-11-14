@@ -32,7 +32,7 @@ class AdditionDataset(Dataset):
         self.vocab = {str(i): i for i in range(10)}
         self.vocab.update({'+': 10, '=': 11, '<PAD>': 12, '<EOS>': 13})
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
-        self.device = torch.device('cuda' if HYPERPARAMETERS['use_gpu'] and torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.max_seq_length = (max_length * 2) + 3  # 2 numbers + '+' + '=' + possible carry
         self.data = self.generate_data()
 
