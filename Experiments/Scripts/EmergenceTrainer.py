@@ -12,17 +12,24 @@ import argparse
 from ArithmeticTransformer import create_arithmetic_transformer
 
 
-# Hyperparameters (you can modify these as needed)
+# Hyperparameters
 HYPERPARAMETERS = {
+    # Model Architecture Parameters
     "vocab_size": 14,
+    "embed_size": None,  # Will be set from command line args
+    "num_heads": None,   # Will be set from command line args
+    "ff_dim": None,      # Will be set from command line args
+    "num_layers": None,  # Will be set from command line args
     "max_length": 42,
+    "dropout": 0.1,
+    
+    # Training Parameters
     "batch_size": 128,
     "num_epochs": 10,
     "learning_rate": 3e-4,
     "train_samples": 200_000,
     "test_samples": 1_000,
     "max_digit_length": 20,
-    "dropout": 0.1,
 }
 
 class AdditionDataset(Dataset):
@@ -185,13 +192,24 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params, 
 
 
 def main(model_id, num_layers, num_heads, embed_size, ff_dim):
+    # Update HYPERPARAMETERS with command line arguments
+    HYPERPARAMETERS["num_layers"] = num_layers
+    HYPERPARAMETERS["num_heads"] = num_heads
+    HYPERPARAMETERS["embed_size"] = embed_size
+    HYPERPARAMETERS["ff_dim"] = ff_dim
+
     # Create datasets
-    train_dataset = AdditionDataset(HYPERPARAMETERS["max_digit_length"], HYPERPARAMETERS["train_samples"])
-    test_dataset = AdditionDataset(HYPERPARAMETERS["max_digit_length"], HYPERPARAMETERS["test_samples"])
+    train_dataset = AdditionDataset(HYPERPARAMETERS["max_digit_length"], 
+                                  HYPERPARAMETERS["train_samples"])
+    test_dataset = AdditionDataset(HYPERPARAMETERS["max_digit_length"], 
+                                  HYPERPARAMETERS["test_samples"])
     
     # Create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=HYPERPARAMETERS["batch_size"], shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=HYPERPARAMETERS["batch_size"])
+    train_loader = DataLoader(train_dataset, 
+                            batch_size=HYPERPARAMETERS["batch_size"], 
+                            shuffle=True)
+    test_loader = DataLoader(test_dataset, 
+                           batch_size=HYPERPARAMETERS["batch_size"])
     
     # Create model with the specified parameters
     head_size = embed_size // num_heads
@@ -210,7 +228,7 @@ def main(model_id, num_layers, num_heads, embed_size, ff_dim):
     criterion = nn.CrossEntropyLoss(ignore_index=HYPERPARAMETERS["vocab_size"]-2)
     optimizer = optim.Adam(model.parameters(), lr=HYPERPARAMETERS["learning_rate"])
     
-    # Train the model
+    # Train model
     model = train_model(model, train_loader, test_loader, criterion, optimizer, HYPERPARAMETERS, model_id)
 
 if __name__ == "__main__":
