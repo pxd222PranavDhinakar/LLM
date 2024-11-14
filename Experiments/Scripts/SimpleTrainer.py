@@ -82,19 +82,19 @@ TRAINING_CONFIGS = {
 
 # Hyperparameters
 HYPERPARAMETERS = {
-    # Model Architecture: LARGE
+    # Model Architecture: SMALL
     'vocab_size': 14,
-    'embed_size': 512,
-    'num_heads': 8,
-    'ff_dim': 2048,
-    'num_layers': 8,
+    'embed_size': 64,
+    'num_heads': 2,
+    'ff_dim': 256,
+    'num_layers': 2,
     'max_length': 42,
-    'dropout': 0.15,
+    'dropout': 0.1,
     
     # Training Parameters
-    'batch_size': 128,
+    'batch_size': 32,
     'num_epochs': 10,
-    'learning_rate': 3e-4,
+    'learning_rate': 1e-3,
     'train_samples': 200_000,
     'test_samples': 1_000,
     'max_digit_length': 20,
