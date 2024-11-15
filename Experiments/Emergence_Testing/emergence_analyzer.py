@@ -33,44 +33,38 @@ os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 class EmergenceAnalyzer:
     def __init__(self, models_dir="Emergence_Models", seed=42, samples_per_length=100):
-        # Set CUDA device before anything else
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-        os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-        
         self.models_dir = Path(models_dir)
         self.seed = seed
         self.samples_per_length = samples_per_length
         self.max_test_length = 20
         
-        # CUDA initialization
-        if torch.cuda.is_available():
-            # Enable tensor cores and optimizations for RTX 2080 Ti
-            torch.backends.cuda.matmul.allow_tf32 = True
-            torch.backends.cudnn.allow_tf32 = True
-            torch.backends.cudnn.benchmark = True
-            
-            # Force device 0 (the RTX 2080 Ti)
-            torch.cuda.set_device(0)
-            self.device = torch.device('cuda:0')
-            
-            # Print GPU info
-            gpu_name = torch.cuda.get_device_name(0)
-            print(f"Using GPU: {gpu_name}")
-            print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
-            print(f"CUDA Version: {torch.version.cuda}")
-        else:
-            self.device = torch.device('cpu')
-            print("No GPU available, using CPU")
-        
-        print(f"Using device: {self.device}")
-        
-        # Set random seeds for reproducibility
+        # Set random seeds first
         torch.manual_seed(seed)
         random.seed(seed)
         np.random.seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed(seed)
-            torch.cuda.manual_seed_all(seed)
+        
+        try:
+            if torch.cuda.is_available():
+                # Try to initialize CUDA
+                torch.cuda.init()
+                torch.cuda.manual_seed(seed)
+                self.device = torch.device('cuda')
+                
+                # Print CUDA information
+                print(f"CUDA available: {torch.cuda.is_available()}")
+                print(f"CUDA device: {torch.cuda.get_device_name(0)}")
+                print(f"CUDA version: {torch.version.cuda}")
+                
+                # Enable TF32 for better performance on Ampere GPUs
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.allow_tf32 = True
+            else:
+                self.device = torch.device('cpu')
+        except Exception as e:
+            print(f"CUDA initialization failed, falling back to CPU: {str(e)}")
+            self.device = torch.device('cpu')
+        
+        print(f"Using device: {self.device}")
         
         # Results storage
         self.model_results = {}
@@ -90,7 +84,8 @@ class EmergenceAnalyzer:
 
     def load_model(self, model_path):
         """Load a model and its configuration with standardized vocabulary"""
-        checkpoint = torch.load(model_path, map_location=self.device)
+        # Load with map_location to handle CUDA architecture differences
+        checkpoint = torch.load(model_path, map_location='cpu')  # First load to CPU
         print("Loaded vocabulary:", checkpoint.get('vocab'))
         print("Inverse vocabulary:", checkpoint.get('inv_vocab'))
         config = checkpoint['model_config']
@@ -108,28 +103,31 @@ class EmergenceAnalyzer:
             max_length=config['max_length']
         )
         
+        # Load state dict to CPU first, then transfer to GPU
         model.load_state_dict(checkpoint['model_state_dict'])
-        model.to(self.device)
+        model = model.to(self.device)
+        
+        # Explicitly put model in eval mode
         model.eval()
         
         # Get vocabulary from checkpoint
         vocab = checkpoint.get('vocab', {})
         inv_vocab = checkpoint.get('inv_vocab', {})
         
-        # Standardize special tokens if they're missing
-        standard_special_tokens = {
-            '<PAD>': 12,
-            '<EOS>': 13,
-            'PAD': 12,  # Alternative format
-            'EOS': 13   # Alternative format
-        }
+        # Print model device location for debugging
+        print(f"Model device: {next(model.parameters()).device}")
         
-        # Update vocab with any missing special tokens
-        for token, value in standard_special_tokens.items():
-            if token not in vocab:
-                vocab[token] = value
-                inv_vocab[value] = token
-                
+        # Try to run a small forward pass to verify GPU compatibility
+        try:
+            with torch.no_grad():
+                dummy_input = torch.zeros((1, config['max_length']), dtype=torch.long).to(self.device)
+                _ = model(dummy_input)
+                print("Model successfully verified on device")
+        except Exception as e:
+            print(f"GPU verification failed, falling back to CPU: {str(e)}")
+            model = model.cpu()
+            self.device = torch.device('cpu')
+        
         return model, vocab, inv_vocab
 
     def preprocess_input(self, input_str, max_length, vocab):
