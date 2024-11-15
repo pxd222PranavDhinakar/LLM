@@ -3,7 +3,7 @@
 #SBATCH --output=output_%j.log
 #SBATCH --error=error_%j.log
 #SBATCH --partition=markov_gpu
-#SBATCH --gres=gpu:RTX2080Ti:1   # Specifically request RTX 2080 Ti
+#SBATCH --gres=gpu:1        # Request any GPU
 #SBATCH --mem=8gb
 #SBATCH --time=24:00:00
 
@@ -18,6 +18,9 @@ module load Seaborn/0.13.2-gfbf-2023a
 
 # Set CUDA device order
 export CUDA_DEVICE_ORDER="PCI_BUS_ID"
+
+# Set env variable to debug CUDA launches
+export CUDA_LAUNCH_BLOCKING=1
 
 # Print some debugging information
 nvidia-smi
