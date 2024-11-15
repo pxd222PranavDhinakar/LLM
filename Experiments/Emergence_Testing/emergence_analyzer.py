@@ -37,18 +37,36 @@ class EmergenceAnalyzer:
         self.seed = seed
         self.samples_per_length = samples_per_length
         self.max_test_length = 20
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        # Print device 
+        # More careful CUDA initialization
+        if torch.cuda.is_available():
+            # Set env variable for CUDA device order
+            os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+            
+            # Get list of available GPUs
+            num_gpus = torch.cuda.device_count()
+            print(f"Found {num_gpus} GPUs")
+            
+            # Find a compatible GPU (RTX 2080 Ti has sm_75 capability)
+            compatible_gpu = None
+            for i in range(num_gpus):
+                gpu_name = torch.cuda.get_device_name(i)
+                print(f"GPU {i}: {gpu_name}")
+                if "2080" in gpu_name:  # RTX 2080 Ti has sm_75 capability
+                    compatible_gpu = i
+                    break
+            
+            if compatible_gpu is not None:
+                torch.cuda.set_device(compatible_gpu)
+                self.device = torch.device(f'cuda:{compatible_gpu}')
+                print(f"Using compatible GPU {compatible_gpu}: {torch.cuda.get_device_name(compatible_gpu)}")
+            else:
+                print("No compatible GPU found, falling back to CPU")
+                self.device = torch.device('cpu')
+        else:
+            self.device = torch.device('cpu')
+            
         print(f"Using device: {self.device}")
-        
-        # Set random seeds for reproducibility
-        torch.manual_seed(seed)
-        random.seed(seed)
-        np.random.seed(seed)
-        
-        # Results storage
-        self.model_results = {}
         
     def generate_n_digit_number(self, n):
         """Generate an n-digit number using string manipulation"""
