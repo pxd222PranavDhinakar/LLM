@@ -7,7 +7,17 @@
 #SBATCH --mem=8gb
 #SBATCH --time=24:00:00
 
-# Verify CUDA setup
-python -c "import torch; print('CUDA available:', torch.cuda.is_available()); print('Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+module purge
+module load Python/3.10.4
+module load CUDA/11.7.0 
+module load PyTorch/2.1.2-foss-2023a-CUDA-12.1.1
 
-python test_model.py
+# Set CUDA environment variables
+export CUDA_VISIBLE_DEVICES=0  
+export PYTHONPATH="/home/pxd222/LLM/Experiments:$PYTHONPATH"
+export CUDA_LAUNCH_BLOCKING=1
+
+cd /home/pxd222/LLM/Experiments/Emergence_Testing
+
+# Run script
+srun python test_model.py
