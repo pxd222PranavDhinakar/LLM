@@ -39,6 +39,9 @@ class EmergenceAnalyzer:
         self.max_test_length = 20
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
+        # Print device 
+        print(f"Using device: {self.device}")
+        
         # Set random seeds for reproducibility
         torch.manual_seed(seed)
         random.seed(seed)
