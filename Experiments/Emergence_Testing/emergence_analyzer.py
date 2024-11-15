@@ -1,6 +1,23 @@
 import torch
 import random
 import numpy as np
+import pandas as pd
+from pathlib import Path
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime
+from tqdm import tqdm
+import sys
+import os
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+
+from Scripts.ArithmeticTransformer import create_arithmetic_transformer
+import torch
+import random
+import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 
@@ -34,7 +51,6 @@ class EmergenceAnalyzer:
         checkpoint = torch.load(model_path, map_location=self.device)
         config = checkpoint['model_config']
         
-        from Scripts.ArithmeticTransformer import create_arithmetic_transformer
         model = create_arithmetic_transformer(
             vocab_size=config['vocab_size'],
             embed_size=config['embed_size'], 
