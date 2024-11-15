@@ -5,6 +5,14 @@ from pathlib import Path
 from tqdm import tqdm
 import csv
 import os
+import sys
+
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+
+from Scripts.ArithmeticTransformer import create_arithmetic_transformer
 
 def test_model(model_path="Emergence_Models/model_01_38k.pth"):
     # Setup
@@ -17,7 +25,6 @@ def test_model(model_path="Emergence_Models/model_01_38k.pth"):
     vocab = checkpoint['vocab']
     inv_vocab = checkpoint['inv_vocab']
     
-    from Scripts.ArithmeticTransformer import create_arithmetic_transformer
     model = create_arithmetic_transformer(
         vocab_size=config['vocab_size'],
         embed_size=config['embed_size'],
