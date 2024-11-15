@@ -1,13 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=emergence_analysis    # Job name
-#SBATCH --output=emergence_%j.log        # Output file, %j is job ID
-#SBATCH --error=emergence_%j.err         # Error file
-#SBATCH --time=24:00:00                 # Time limit (24 hours)
-#SBATCH --nodes=1                       # Number of nodes
-#SBATCH --ntasks=1                      # Number of tasks
-#SBATCH --gres=gpu:1                    # Request 1 GPU
-#SBATCH --mem=32G                       # Memory per node
-#SBATCH --partition=gpu                 # GPU partition
+#SBATCH --job-name=emergence_analysis
+#SBATCH --output=output_%j.log
+#SBATCH --error=error_%j.log
+#SBATCH --partition=markov_gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem=8gb
+#SBATCH --time=24:00:00
 
 # Load necessary modules
 module load GCCcore
