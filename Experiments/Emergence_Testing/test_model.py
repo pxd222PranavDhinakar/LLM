@@ -15,6 +15,10 @@ sys.path.insert(0, parent_dir)
 from Scripts.ArithmeticTransformer import create_arithmetic_transformer
 
 def test_model(model_path="Emergence_Models/model_01_38k.pth"):
+    
+    # Print the model path
+    print(f"Model path: {model_path}")
+    
     # Setup
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
