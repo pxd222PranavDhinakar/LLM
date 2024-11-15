@@ -45,24 +45,19 @@ class EmergenceAnalyzer:
         
         try:
             if torch.cuda.is_available():
-                # Try to initialize CUDA
+                # Try with default settings first
                 torch.cuda.init()
-                torch.cuda.manual_seed(seed)
+                dummy_tensor = torch.zeros(1).cuda()
+                _ = dummy_tensor + 1  # Test basic operation
                 self.device = torch.device('cuda')
-                
-                # Print CUDA information
-                print(f"CUDA available: {torch.cuda.is_available()}")
-                print(f"CUDA device: {torch.cuda.get_device_name(0)}")
-                print(f"CUDA version: {torch.version.cuda}")
-                
-                # Enable TF32 for better performance on Ampere GPUs
-                torch.backends.cuda.matmul.allow_tf32 = True
-                torch.backends.cudnn.allow_tf32 = True
+                print(f"CUDA initialized successfully")
             else:
                 self.device = torch.device('cpu')
         except Exception as e:
-            print(f"CUDA initialization failed, falling back to CPU: {str(e)}")
+            print(f"CUDA initialization failed: {e}")
+            print("Falling back to CPU")
             self.device = torch.device('cpu')
+            torch.cuda.is_available = lambda: False  # Prevent further CUDA attempts
         
         print(f"Using device: {self.device}")
         
