@@ -9,7 +9,6 @@ import random
 import os
 from ArithmeticTransformer import create_arithmetic_transformer
 
-
 '''
 # Small (~105K parameters)
 - embed_size: 64
@@ -35,7 +34,6 @@ from ArithmeticTransformer import create_arithmetic_transformer
 - ff_dim: 4096
 - num_layers: 12
 '''
-
 
 # Hyperparameters
 HYPERPARAMETERS = {
@@ -66,6 +64,33 @@ HYPERPARAMETERS = {
     'model_name': 'process_addition_model'
 }
 
+def collate_batch(batch):
+    # Sort by input length for potential future optimizations
+    batch.sort(key=lambda x: len(x[0]), reverse=True)
+    
+    # Separate inputs and targets
+    inputs, targets = zip(*batch)
+    
+    # Get lengths
+    input_lengths = [len(x) for x in inputs]
+    target_lengths = [len(x) for x in targets]
+    
+    # Find max lengths
+    max_input_len = max(input_lengths)
+    max_target_len = max(target_lengths)
+    
+    # Pad sequences
+    padded_inputs = torch.full((len(batch), max_input_len), 0, dtype=torch.long)
+    padded_targets = torch.full((len(batch), max_target_len), 0, dtype=torch.long)
+    
+    # Fill in the actual sequences
+    for i, (input_seq, target_seq) in enumerate(zip(inputs, targets)):
+        padded_inputs[i, :len(input_seq)] = input_seq
+        padded_targets[i, :len(target_seq)] = target_seq
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    return padded_inputs.to(device), padded_targets.to(device)
+
 class ProcessAdditionDataset(Dataset):
     def __init__(self, max_length, num_samples, random_seed):
         self.max_length = max_length
@@ -82,15 +107,13 @@ class ProcessAdditionDataset(Dataset):
         })
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
         random.seed(random_seed)
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.data = self.generate_data()
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        input_tensor, target_tensor = self.data[idx]
-        return input_tensor.to(self.device), target_tensor.to(self.device)
+        return self.data[idx]
 
     def generate_number(self, length):
         return random.randint(10**(length-1), 10**length - 1)
@@ -182,7 +205,11 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params):
         for batch_idx, (inputs, targets) in progress_bar:
             optimizer.zero_grad()
             outputs = model(inputs)
-            loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
+            
+            # Reshape outputs and targets for loss calculation
+            B, S, V = outputs.shape  # Batch, Sequence, Vocab
+            loss = criterion(outputs.view(-1, V), targets.view(-1))
+            
             loss.backward()
             optimizer.step()
             
@@ -211,7 +238,8 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params):
         with torch.no_grad():
             for inputs, targets in test_loader:
                 outputs = model(inputs)
-                loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
+                B, S, V = outputs.shape
+                loss = criterion(outputs.view(-1, V), targets.view(-1))
                 test_loss += loss.item()
                 
                 _, predicted = outputs.max(dim=-1)
@@ -268,12 +296,19 @@ def main():
         HYPERPARAMETERS['test_seed']
     )
     
-    # Create dataloaders
-    train_loader = DataLoader(train_dataset, 
-                            batch_size=HYPERPARAMETERS['batch_size'],
-                            shuffle=True)
-    test_loader = DataLoader(test_dataset, 
-                           batch_size=HYPERPARAMETERS['batch_size'])
+    # Create dataloaders with custom collate function
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=HYPERPARAMETERS['batch_size'],
+        shuffle=True,
+        collate_fn=collate_batch
+    )
+    
+    test_loader = DataLoader(
+        test_dataset, 
+        batch_size=HYPERPARAMETERS['batch_size'],
+        collate_fn=collate_batch
+    )
     
     # Create model
     model = create_arithmetic_transformer(
