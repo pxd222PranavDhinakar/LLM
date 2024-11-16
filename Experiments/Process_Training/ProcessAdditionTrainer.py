@@ -95,6 +95,8 @@ class ProcessAdditionDataset(Dataset):
     def __init__(self, max_length, num_samples, random_seed):
         self.max_length = max_length
         self.num_samples = num_samples
+        self.max_input_length = max_length * 2 + 1  # num1 + '+' + num2
+        self.max_target_length = max_length * 10  # Generous estimate for process+result
         # Define vocabulary
         self.vocab = {str(i): i for i in range(10)}  # 0-9
         self.vocab.update({
@@ -114,6 +116,14 @@ class ProcessAdditionDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx]
+    
+    def pad_sequence(self, seq, max_len):
+        return torch.nn.functional.pad(
+            seq, 
+            (0, max_len - len(seq)), 
+            mode='constant', 
+            value=0
+        )
 
     def generate_number(self, length):
         return random.randint(10**(length-1), 10**length - 1)
@@ -165,13 +175,16 @@ class ProcessAdditionDataset(Dataset):
                     # Combine process and result
                     target_str = f"{process_str}|={result}"
                     
-                    # Convert to tokens
+                    # Convert to tokens and pad
                     input_tokens = self.tokenize(input_str)
                     target_tokens = self.tokenize(target_str)
                     
-                    # Convert to tensors
+                    # Pad sequences to fixed lengths
                     input_tensor = torch.tensor(input_tokens, dtype=torch.long)
                     target_tensor = torch.tensor(target_tokens, dtype=torch.long)
+                    
+                    input_tensor = self.pad_sequence(input_tensor, self.max_input_length)
+                    target_tensor = self.pad_sequence(target_tensor, self.max_target_length)
                     
                     data.append((input_tensor, target_tensor))
         
