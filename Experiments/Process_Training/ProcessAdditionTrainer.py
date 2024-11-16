@@ -207,33 +207,22 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params):
             outputs = model(inputs)
             
             # Get shapes
-            B, S, V = outputs.shape  # Batch, Sequence, Vocab
-            T = targets.shape[1]     # Target sequence length
+            B, S, V = outputs.shape  # Batch, Sequence, Vocab size
             
-            # Ensure targets are properly shaped
-            targets = targets.contiguous().view(-1)
-            outputs = outputs.view(-1, V)
+            # Reshape outputs and targets for loss calculation
+            outputs_flat = outputs.view(-1, V)
+            targets_flat = targets.reshape(-1)
             
-            # Calculate loss
-            # Filter out padding if needed
-            non_pad_mask = targets.ne(0)  # Assuming 0 is padding
-            if non_pad_mask.any():
-                outputs = outputs[non_pad_mask]
-                targets = targets[non_pad_mask]
-                loss = criterion(outputs, targets)
-            else:
-                loss = torch.tensor(0.0, device=device)
+            # Calculate loss (ignoring padding)
+            loss = criterion(outputs_flat, targets_flat)
             
             loss.backward()
             optimizer.step()
             
             total_loss += loss.item()
             
-            # Calculate accuracy on the original shaped outputs
-            outputs = outputs.view(B, -1, V)
+            # Calculate accuracy
             _, predicted = outputs.max(dim=-1)
-            targets = targets.view(B, -1)
-            
             # Count exact matches (entire process+result must be correct)
             correct_predictions += (predicted == targets).all(dim=1).sum().item()
             total_predictions += B
@@ -257,29 +246,18 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params):
         with torch.no_grad():
             for inputs, targets in test_loader:
                 outputs = model(inputs)
-                
-                # Get shapes
                 B, S, V = outputs.shape
                 
-                # Ensure targets are properly shaped
-                targets = targets.contiguous().view(-1)
+                # Reshape for loss calculation
                 outputs_flat = outputs.view(-1, V)
+                targets_flat = targets.reshape(-1)
                 
                 # Calculate loss
-                non_pad_mask = targets.ne(0)
-                if non_pad_mask.any():
-                    outputs_flat = outputs_flat[non_pad_mask]
-                    targets_filtered = targets[non_pad_mask]
-                    loss = criterion(outputs_flat, targets_filtered)
-                else:
-                    loss = torch.tensor(0.0, device=device)
-                
+                loss = criterion(outputs_flat, targets_flat)
                 test_loss += loss.item()
                 
                 # Calculate accuracy
-                outputs = outputs.view(B, -1, V)
                 _, predicted = outputs.max(dim=-1)
-                targets = targets.view(B, -1)
                 test_correct += (predicted == targets).all(dim=1).sum().item()
                 test_total += B
         
