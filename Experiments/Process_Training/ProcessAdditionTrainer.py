@@ -188,11 +188,14 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params):
     criterion = criterion.to(device)
     best_accuracy = 0
     
-    # Create save directory if it doesn't exist
-    os.makedirs(params['model_save_path'], exist_ok=True)
+    # Debug first batch
+    print("\nDEBUG: Examining first batch from train_loader...")
+    sample_batch = next(iter(train_loader))
+    inputs, targets = sample_batch
+    print(f"Sample batch input shape: {inputs.shape}")
+    print(f"Sample batch target shape: {targets.shape}")
     
     for epoch in range(params['num_epochs']):
-        # Training phase
         model.train()
         total_loss = 0
         correct_predictions = 0
@@ -203,98 +206,76 @@ def train_model(model, train_loader, test_loader, criterion, optimizer, params):
                           desc=f"Epoch {epoch+1}/{params['num_epochs']}")
         
         for batch_idx, (inputs, targets) in progress_bar:
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            
-            # Get shapes
-            B, S, V = outputs.shape  # Batch, Sequence, Vocab size
-            
-            # Reshape outputs and targets for loss calculation
-            outputs_flat = outputs.view(-1, V)
-            targets_flat = targets.reshape(-1)
-            
-            # Calculate loss (ignoring padding)
-            loss = criterion(outputs_flat, targets_flat)
-            
-            loss.backward()
-            optimizer.step()
-            
-            total_loss += loss.item()
-            
-            # Calculate accuracy
-            _, predicted = outputs.max(dim=-1)
-            # Count exact matches (entire process+result must be correct)
-            correct_predictions += (predicted == targets).all(dim=1).sum().item()
-            total_predictions += B
-            
-            progress_bar.set_postfix({
-                'loss': f"{loss.item():.4f}",
-                'acc': f"{correct_predictions/total_predictions:.4f}"
-            })
-        
-        # Calculate training metrics
-        avg_loss = total_loss / len(train_loader)
-        train_accuracy = correct_predictions / total_predictions
-        epoch_time = time.time() - start_time
-        
-        # Evaluation phase
-        model.eval()
-        test_loss = 0
-        test_correct = 0
-        test_total = 0
-        
-        with torch.no_grad():
-            for inputs, targets in test_loader:
-                outputs = model(inputs)
-                B, S, V = outputs.shape
+            try:
+                print("\nDEBUG: Batch Information")
+                print(f"Batch idx: {batch_idx}")
+                print(f"Input shape: {inputs.shape}")
+                print(f"Target shape: {targets.shape}")
                 
-                # Reshape for loss calculation
+                optimizer.zero_grad()
+                outputs = model(inputs)
+                print(f"Model output shape: {outputs.shape}")
+                
+                # Get shapes
+                B, S, V = outputs.shape
+                print(f"Batch size (B): {B}")
+                print(f"Sequence length (S): {S}")
+                print(f"Vocab size (V): {V}")
+                
+                # Reshape outputs and targets for loss calculation
                 outputs_flat = outputs.view(-1, V)
                 targets_flat = targets.reshape(-1)
+                print(f"Flattened outputs shape: {outputs_flat.shape}")
+                print(f"Flattened targets shape: {targets_flat.shape}")
                 
-                # Calculate loss
+                # Debug unique values
+                print(f"Unique values in targets: {torch.unique(targets).tolist()}")
+                print(f"Target min/max: {targets.min().item()}, {targets.max().item()}")
+                
+                # Calculate loss (ignoring padding)
                 loss = criterion(outputs_flat, targets_flat)
-                test_loss += loss.item()
+                
+                loss.backward()
+                optimizer.step()
+                
+                total_loss += loss.item()
                 
                 # Calculate accuracy
                 _, predicted = outputs.max(dim=-1)
-                test_correct += (predicted == targets).all(dim=1).sum().item()
-                test_total += B
-        
-        test_accuracy = test_correct / test_total
-        avg_test_loss = test_loss / len(test_loader)
-        
-        # Print epoch results
-        print(f'\nEpoch {epoch+1}/{params["num_epochs"]} - Time: {epoch_time:.2f}s')
-        print(f'Train Loss: {avg_loss:.4f}, Train Accuracy: {train_accuracy:.4f}')
-        print(f'Test Loss: {avg_test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}')
-        
-        # Save best model
-        if test_accuracy > best_accuracy:
-            best_accuracy = test_accuracy
-            save_path = os.path.join(params['model_save_path'], f"{params['model_name']}.pth")
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'accuracy': best_accuracy,
-                'model_config': {
-                    'vocab_size': params['vocab_size'],
-                    'embed_size': params['embed_size'],
-                    'num_heads': params['num_heads'],
-                    'ff_dim': params['ff_dim'],
-                    'num_layers': params['num_layers'],
-                    'max_length': params['max_length'],
-                    'dropout': params['dropout']
-                },
-                'vocab': train_loader.dataset.vocab,
-                'inv_vocab': train_loader.dataset.inv_vocab
-            }, save_path)
-            print(f'New best model saved with accuracy: {best_accuracy:.4f}')
-        
-        print('-' * 60)
+                correct_predictions += (predicted == targets).all(dim=1).sum().item()
+                total_predictions += B
+                
+                progress_bar.set_postfix({
+                    'loss': f"{loss.item():.4f}",
+                    'acc': f"{correct_predictions/total_predictions:.4f}"
+                })
+                
+                # Break after first batch for debugging
+                if batch_idx == 0:
+                    print("\nDEBUG: Completed first batch successfully")
+                    print("-" * 60)
+                    break
+                    
+            except Exception as e:
+                print("\nERROR DETAILS:")
+                print(f"Error occurred in batch {batch_idx}")
+                print(f"Input tensor shape: {inputs.shape}")
+                print(f"Target tensor shape: {targets.shape}")
+                if 'outputs' in locals():
+                    print(f"Output tensor shape: {outputs.shape}")
+                if 'outputs_flat' in locals():
+                    print(f"Flattened output shape: {outputs_flat.shape}")
+                if 'targets_flat' in locals():
+                    print(f"Flattened target shape: {targets_flat.shape}")
+                raise e
+                
+        print("\nEpoch Summary:")
+        print(f"Total batches processed: {batch_idx + 1}")
+        print(f"Final input shape: {inputs.shape}")
+        print(f"Final target shape: {targets.shape}")
+        print(f"Final output shape: {outputs.shape}")
+        break  # Stop after first epoch for debugging
     
-    print(f'Training completed. Best test accuracy: {best_accuracy:.4f}')
     return model
 
 def main():
