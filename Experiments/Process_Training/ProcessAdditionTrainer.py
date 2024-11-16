@@ -43,7 +43,7 @@ HYPERPARAMETERS = {
     'num_heads': 2,
     'ff_dim': 256,
     'num_layers': 2,
-    'max_length': 128,  # Increased for process steps
+    'max_length': 232,  # Increased for process steps
     'dropout': 0.1,
     
     # Training Parameters
