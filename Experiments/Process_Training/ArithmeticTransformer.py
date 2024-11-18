@@ -161,6 +161,3 @@ def create_arithmetic_transformer(
         max_length=max_length,
         dropout=dropout
     )
-    
-    
-    

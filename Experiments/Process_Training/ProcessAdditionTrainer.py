@@ -7,7 +7,24 @@ from tqdm import tqdm
 import time
 import random
 import os
+os.environ['LC_ALL'] = 'en_US.UTF-8'
+os.environ['LANG'] = 'en_US.UTF-8'
+import locale
+import signal
 from ArithmeticTransformer import create_arithmetic_transformer
+
+# Set locale to handle encoding issues
+try:
+    locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+except:
+    locale.setlocale(locale.LC_ALL, '')
+
+# Signal handler for clean process termination
+def signal_handler(signum, frame):
+    print("\nSignal received, cleaning up...")
+    exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
 
 '''
 # Small (~105K parameters)
@@ -194,105 +211,55 @@ class ProcessAdditionDataset(Dataset):
 def train_model(model, train_loader, test_loader, criterion, optimizer, params):
     device = torch.device('cuda' if params['use_gpu'] and torch.cuda.is_available() else 'cpu')
     print(f"\nTraining on: {device}")
-    if device.type == 'cuda':
-        print(f"GPU: {torch.cuda.get_device_name(0)}")
     
     model = model.to(device)
     criterion = criterion.to(device)
     best_accuracy = 0
-    
-    # Debug first batch
-    print("\nDEBUG: Examining first batch from train_loader...")
-    sample_batch = next(iter(train_loader))
-    inputs, targets = sample_batch
-    print(f"Sample batch input shape: {inputs.shape}")
-    print(f"Sample batch target shape: {targets.shape}")
     
     for epoch in range(params['num_epochs']):
         model.train()
         total_loss = 0
         correct_predictions = 0
         total_predictions = 0
-        start_time = time.time()
         
-        progress_bar = tqdm(enumerate(train_loader), total=len(train_loader),
-                          desc=f"Epoch {epoch+1}/{params['num_epochs']}")
-        
-        for batch_idx, (inputs, targets) in progress_bar:
-            try:
-                print("\nDEBUG: Batch Information")
-                print(f"Batch idx: {batch_idx}")
-                print(f"Input shape: {inputs.shape}")
-                print(f"Target shape: {targets.shape}")
-                
+        # Wrap training loop in try-except
+        try:
+            progress_bar = tqdm(enumerate(train_loader), total=len(train_loader),
+                              desc=f"Epoch {epoch+1}/{params['num_epochs']}")
+            
+            for batch_idx, (inputs, targets) in progress_bar:
                 optimizer.zero_grad()
                 outputs = model(inputs)
-                print(f"Model output shape: {outputs.shape}")
-                
-                # Get shapes
-                B, S, V = outputs.shape
-                print(f"Batch size (B): {B}")
-                print(f"Sequence length (S): {S}")
-                print(f"Vocab size (V): {V}")
                 
                 # Reshape outputs and targets for loss calculation
+                B, S, V = outputs.shape
                 outputs_flat = outputs.view(-1, V)
                 targets_flat = targets.reshape(-1)
-                print(f"Flattened outputs shape: {outputs_flat.shape}")
-                print(f"Flattened targets shape: {targets_flat.shape}")
                 
-                # Debug unique values
-                print(f"Unique values in targets: {torch.unique(targets).tolist()}")
-                print(f"Target min/max: {targets.min().item()}, {targets.max().item()}")
-                
-                # Calculate loss (ignoring padding)
+                # Calculate loss
                 loss = criterion(outputs_flat, targets_flat)
-                
                 loss.backward()
                 optimizer.step()
-                
-                total_loss += loss.item()
                 
                 # Calculate accuracy
                 _, predicted = outputs.max(dim=-1)
                 correct_predictions += (predicted == targets).all(dim=1).sum().item()
-                total_predictions += B
+                total_predictions += inputs.size(0)
                 
+                # Update progress bar
                 progress_bar.set_postfix({
                     'loss': f"{loss.item():.4f}",
                     'acc': f"{correct_predictions/total_predictions:.4f}"
                 })
                 
-                # Break after first batch for debugging
-                if batch_idx == 0:
-                    print("\nDEBUG: Completed first batch successfully")
-                    print("-" * 60)
-                    break
-                    
-            except Exception as e:
-                print("\nERROR DETAILS:")
-                print(f"Error occurred in batch {batch_idx}")
-                print(f"Input tensor shape: {inputs.shape}")
-                print(f"Target tensor shape: {targets.shape}")
-                if 'outputs' in locals():
-                    print(f"Output tensor shape: {outputs.shape}")
-                if 'outputs_flat' in locals():
-                    print(f"Flattened output shape: {outputs_flat.shape}")
-                if 'targets_flat' in locals():
-                    print(f"Flattened target shape: {targets_flat.shape}")
-                raise e
-                
-        print("\nEpoch Summary:")
-        print(f"Total batches processed: {batch_idx + 1}")
-        print(f"Final input shape: {inputs.shape}")
-        print(f"Final target shape: {targets.shape}")
-        print(f"Final output shape: {outputs.shape}")
-        break  # Stop after first epoch for debugging
-    
+        except Exception as e:
+            print(f"\nError during training: {str(e)}")
+            raise e
+            
     return model
 
 def main():
-    # Create datasets with different seeds
+    # Create datasets
     train_dataset = ProcessAdditionDataset(
         HYPERPARAMETERS['max_digit_length'],
         HYPERPARAMETERS['train_samples'],
@@ -305,21 +272,25 @@ def main():
         HYPERPARAMETERS['test_seed']
     )
     
-    # Create dataloaders with custom collate function
+    # Create dataloaders with modified settings
     train_loader = DataLoader(
         train_dataset, 
         batch_size=HYPERPARAMETERS['batch_size'],
         shuffle=True,
-        collate_fn=collate_batch
+        collate_fn=collate_batch,
+        num_workers=0,  # Disable multiprocessing
+        persistent_workers=False
     )
     
     test_loader = DataLoader(
         test_dataset, 
         batch_size=HYPERPARAMETERS['batch_size'],
-        collate_fn=collate_batch
+        collate_fn=collate_batch,
+        num_workers=0,  # Disable multiprocessing
+        persistent_workers=False
     )
     
-    # Create model
+    # Create model and setup training
     model = create_arithmetic_transformer(
         vocab_size=HYPERPARAMETERS['vocab_size'],
         embed_size=HYPERPARAMETERS['embed_size'],
@@ -331,13 +302,34 @@ def main():
         dropout=HYPERPARAMETERS['dropout']
     )
     
-    # Setup training
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=HYPERPARAMETERS['learning_rate'])
     
-    # Train model
-    model = train_model(model, train_loader, test_loader, criterion, optimizer, HYPERPARAMETERS)
-    print("Training completed!")
+    try:
+        # Train model
+        model = train_model(model, train_loader, test_loader, criterion, optimizer, HYPERPARAMETERS)
+        print("Training completed successfully!")
+        
+        # Save model if needed
+        if HYPERPARAMETERS['model_save_path']:
+            os.makedirs(HYPERPARAMETERS['model_save_path'], exist_ok=True)
+            save_path = os.path.join(
+                HYPERPARAMETERS['model_save_path'], 
+                f"{HYPERPARAMETERS['model_name']}.pt"
+            )
+            torch.save(model.state_dict(), save_path)
+            print(f"Model saved to {save_path}")
+            
+    except KeyboardInterrupt:
+        print("\nTraining interrupted by user")
+    except Exception as e:
+        print(f"\nError during training: {str(e)}")
+        raise e
+    finally:
+        # Cleanup
+        print("\nCleaning up...")
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 if __name__ == "__main__":
     main()
