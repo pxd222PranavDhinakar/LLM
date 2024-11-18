@@ -159,27 +159,27 @@ class Config:
     def __init__(self):
         
         '''
-        SMALL
-        embed_size: 64
-        num_heads: 2
-        ff_dim: 256
-        num_layers: 2
-        dropout: 0.1
-        batch_size: 32
-        learning_rate: 1e-3
+        Medium (~1.8M parameters):
+            embed_size: 256
+            num_heads: 4
+            ff_dim: 1024
+            num_layers: 4
+            dropout: 0.1
+            batch_size: 64
+            learning_rate: 3e-4
         '''
         # Model Architecture
         self.vocab_size = 17    # 0-9 plus special tokens
-        self.embed_size = 64   
-        self.num_heads = 2
-        self.ff_dim = 256
-        self.num_layers = 2
+        self.embed_size = 256   
+        self.num_heads = 4
+        self.ff_dim = 1024
+        self.num_layers = 4
         self.max_length = 512   # Increased to handle longer sequences
         self.dropout = 0.1
         
         # Training Parameters
-        self.batch_size = 32    # Reduced to handle longer sequences
-        self.learning_rate = 1e-3
+        self.batch_size = 64    # Reduced to handle longer sequences
+        self.learning_rate = 3e-4
         self.max_epochs = 5 
         self.warmup_steps = 1000
         self.grad_clip = 1.0
