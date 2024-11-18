@@ -643,5 +643,5 @@ def main():
         
 
 if __name__ == "__main__":
-    #main()
-    test_dataset_generation()
+    main()
+    #test_dataset_generation()
