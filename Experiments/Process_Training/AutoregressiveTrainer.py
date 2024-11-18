@@ -185,7 +185,7 @@ class Config:
         self.grad_clip = 1.0
         
         # Dataset Parameters
-        self.max_digit_length = 3  # This affects sequence length
+        self.max_digit_length = 4  # This affects sequence length
         self.train_samples = 100000
         self.val_samples = 1000
         self.train_seed = 42
