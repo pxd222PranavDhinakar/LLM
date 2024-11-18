@@ -263,10 +263,13 @@ class ProcessAdditionDataset(Dataset):
             d1, d2 = int(n1[i]), int(n2[i])
             total = d1 + d2 + carry
             digit, carry = total % 10, total // 10
-            steps.insert(0, f"{d1},{d2},{carry}>{digit},{carry}")
+            
+            steps.append(f"{d1},{d2},{carry}>{digit},{carry}")
+            #steps.insert(0, f"{d1},{d2},{carry}>{digit},{carry}")
         
         if carry:
-            steps.insert(0, f"0,0,{carry}>{carry},0")
+            #steps.append(f"{d1},{d2},{carry}>{digit},{carry}")
+            steps.append(f"0,0,{carry}>{carry},0")  # Changed from insert(0)
         
         # Combine all parts
         process = ";".join(steps)
@@ -599,6 +602,28 @@ def load_final_model(model_path, device=None):
     return model, checkpoint['vocab'], checkpoint['inv_vocab']
 
 
+def test_dataset_generation():
+    config = Config()
+    
+    # Create small test dataset
+    dataset = ProcessAdditionDataset(config, num_samples=100, seed=42)
+    
+    print("Sample training sequences:")
+    print("-" * 50)
+    
+    for i, seq in enumerate(dataset.data[:100]):
+        # Convert tokens back to string
+        sequence = ''.join([dataset.inv_vocab[token.item()] for token in seq])
+        
+        # Split into parts for readability
+        problem, steps = sequence.split(':')
+        steps, result = steps.split('|')
+        
+        print(f"\nExample {i+1}:")
+        print(f"Problem: {problem}")
+        print(f"Steps: {steps}")
+        print(f"Result: {result}")
+
 def main():
     try:
         print("Creating config...")
@@ -618,4 +643,5 @@ def main():
         
 
 if __name__ == "__main__":
-    main()
+    #main()
+    test_dataset_generation()
