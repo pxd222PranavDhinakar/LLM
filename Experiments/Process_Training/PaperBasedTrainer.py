@@ -250,6 +250,7 @@ class Trainer:
         )
         
         self.global_step = 0
+        self.best_val_acc = 0.0
         
     def train_epoch(self):
         self.model.train()
@@ -305,7 +306,7 @@ class Trainer:
             
         return total_loss / len(self.val_loader), total_correct / total_tokens
 
-    def save_checkpoint(self):
+    def save_checkpoint(self, is_best=False, is_final=False):
         checkpoint = {
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
@@ -316,11 +317,23 @@ class Trainer:
         }
         
         os.makedirs(self.config.save_dir, exist_ok=True)
+        
+        # Regular checkpoint
         path = os.path.join(
             self.config.save_dir,
             f"{self.config.model_name}_step_{self.global_step}.pt"
         )
         torch.save(checkpoint, path)
+        
+        # Save best model if this is the best validation accuracy
+        if is_best:
+            best_path = os.path.join(self.config.save_dir, "best_model.pt")
+            torch.save(checkpoint, best_path)
+            
+        # Save final model
+        if is_final:
+            final_path = os.path.join(self.config.save_dir, "final_model.pt")
+            torch.save(checkpoint, final_path)
     
     def train(self):
         print("Starting training...")
@@ -334,7 +347,17 @@ class Trainer:
                 val_loss, val_acc = self.validate()
                 print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
                 
+                # Save regular checkpoint
                 self.save_checkpoint()
+                
+                # Save best model if this is the best validation accuracy
+                if val_acc > self.best_val_acc:
+                    self.best_val_acc = val_acc
+                    self.save_checkpoint(is_best=True)
+            
+            # Save final model
+            self.save_checkpoint(is_final=True)
+            print("Training completed!")
                 
         except KeyboardInterrupt:
             print("\nTraining interrupted by user")
