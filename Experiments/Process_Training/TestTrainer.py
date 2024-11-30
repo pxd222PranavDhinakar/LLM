@@ -6,12 +6,12 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 import random
 import numpy as np
-from AutoregressiveArithmeticTransformer import create_arithmetic_transformer
+from NewArchitecture import create_arithmetic_transformer
 
 class Config:
     def __init__(self):
         # Model Architecture
-        self.vocab_size = 33  # Updated to include END token
+        self.vocab_size = 33  # Includes END token
         self.embed_size = 256
         self.num_heads = 4
         self.ff_dim = 1024
@@ -47,7 +47,7 @@ class ProcessAdditionDataset(Dataset):
         self.max_length = config.max_length
         self.curriculum_step = curriculum_step
         
-        # Setup vocabulary with new tokens
+        # Setup vocabulary
         self.vocab = {str(i): i for i in range(10)}
         self.vocab.update({
             '+': 12, '>': 13, 
@@ -58,49 +58,16 @@ class ProcessAdditionDataset(Dataset):
             'I': 21, 'n': 22, 'p': 23, 'u': 24, 't': 25,
             'T': 26, 'a': 27, 'r': 28, 'g': 29, 'e': 30,
             '.': 31,
-            '$': 32  # Using '$' as END token
+            '$': 32  # END token
         })
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
         self.pad_token = 0
         
-        # Set random seed
+        # Set random seed and generate dataset
         random.seed(seed)
-        
-        # Generate the dataset
-        self.data = []  # Initialize data attribute first
-        self.data = self.generate_dataset()  # Then populate it
+        self.data = []
+        self.generate_dataset()
 
-    def generate_sequence(self, num1, num2):
-        # Format validation
-        if not (0 <= num1 <= 9 and 0 <= num2 <= 9):
-            return None
-            
-        # Generate sequence with consistent format
-        input_str = f"Input: {num1}+{num2}\n"
-        target_str = "Target:\n"
-        
-        # Calculate addition
-        total = num1 + num2
-        digit, carry = total % 10, total // 10
-        
-        # Format carry step and result
-        step_str = f"A->{digit}, C->{carry}.\n"
-        result_str = f"{total}$"  # Using $ instead of <END>
-        
-        # Combine all parts
-        complete_str = input_str + target_str + step_str + result_str
-        
-        # Convert to tokens
-        tokens = []
-        for c in complete_str:
-            if c in self.vocab:
-                tokens.append(self.vocab[c])
-            else:
-                print(f"Warning: Character '{c}' not in vocabulary!")
-                return None
-                
-        return torch.tensor(tokens, dtype=torch.long)
-    
     def get_number_range(self):
         if self.curriculum_step == 0:
             return 0, 4  # Start with small numbers
@@ -108,33 +75,65 @@ class ProcessAdditionDataset(Dataset):
             return 0, 7  # Medium difficulty
         else:
             return 0, 9  # Full range
-    
+
+    def generate_sequence(self, num1, num2):
+        # Format validation
+        if not (0 <= num1 <= 9 and 0 <= num2 <= 9):
+            return None
+            
+        # Calculate addition
+        total = num1 + num2
+        digit, carry = total % 10, total // 10
+        
+        # Create the sequence with clear separation
+        complete_str = f"Input: {num1}+{num2}\nTarget:\nA->{digit}, C->{carry}.\n{total}$"
+        
+        # Convert to tokens
+        tokens = []
+        for c in complete_str:
+            if c not in self.vocab:
+                print(f"Warning: Character '{c}' not in vocabulary!")
+                return None
+            tokens.append(self.vocab[c])
+                
+        return torch.tensor(tokens, dtype=torch.long)
 
     def generate_dataset(self):
-        data = []
         pbar = tqdm(total=self.num_samples, desc="Generating samples")
-        
         min_num, max_num = self.get_number_range()
         
-        while len(data) < self.num_samples:
+        while len(self.data) < self.num_samples:
             num1 = random.randint(min_num, max_num)
             num2 = random.randint(min_num, max_num)
             
             sequence = self.generate_sequence(num1, num2)
             if sequence is not None and len(sequence) <= self.max_length:
-                data.append(sequence)
+                self.data.append(sequence)
                 pbar.update(1)
         
         pbar.close()
-        return data
 
     def __len__(self):
         return len(self.data)
     
     def __getitem__(self, idx):
         sequence = self.data[idx]
-        x = sequence[:-1]
-        y = sequence[1:]
+        
+        # Find the position of "Target:\n"
+        target_str = "Target:\n"
+        target_tokens = [self.vocab[c] for c in target_str]
+        target_pos = 0
+        
+        # Find the target_str in the sequence
+        for i in range(len(sequence) - len(target_tokens)):
+            if all(sequence[i + j] == target_tokens[j] for j in range(len(target_tokens))):
+                target_pos = i
+                break
+                
+        # Split into input and target
+        x = sequence[:target_pos + len(target_tokens)]  # Include "Target:\n"
+        y = sequence[1:]  # Teacher forcing: predict next token
+        
         return x, y
 
 def create_padding_mask(tensor, pad_token=0):
@@ -204,67 +203,67 @@ class Trainer:
             collate_fn=collate_fn,
             num_workers=0
         )
-    
+        
     def train_epoch(self):
-        self.model.train()
-        total_loss = 0
-        total_correct = 0
-        total_tokens = 0
-        sequence_correct = 0
-        total_sequences = 0
-        
-        progress_bar = tqdm(self.train_loader)
-        for batch_idx, (inputs, targets) in enumerate(progress_bar):
-            inputs = inputs.to(self.config.device)
-            targets = targets.to(self.config.device)
+            self.model.train()
+            total_loss = 0
+            total_correct = 0
+            total_tokens = 0
+            sequence_correct = 0
+            total_sequences = 0
             
-            # Create padding mask
-            padding_mask = create_padding_mask(targets)
-            padding_mask = padding_mask.to(self.config.device)
+            progress_bar = tqdm(self.train_loader)
+            for batch_idx, (inputs, targets) in enumerate(progress_bar):
+                inputs = inputs.to(self.config.device)
+                targets = targets.to(self.config.device)
+                
+                # Create padding mask
+                padding_mask = create_padding_mask(targets).to(self.config.device)
+                
+                # Forward pass
+                logits, loss = self.model(inputs, targets)
+                
+                # Properly mask and calculate loss
+                active_elements = padding_mask.sum()
+                if active_elements > 0:  # Avoid division by zero
+                    loss = (loss * padding_mask.view(-1)).sum() / active_elements
+                    
+                    # Calculate metrics only on non-padding elements
+                    predictions = logits.argmax(dim=-1)
+                    total_correct += ((predictions == targets) * padding_mask).sum().item()
+                    total_tokens += active_elements.item()
+                    
+                    # Sequence-level accuracy
+                    sequence_match = ((predictions == targets) * padding_mask).all(dim=1)
+                    sequence_correct += sequence_match.sum().item()
+                    total_sequences += inputs.size(0)
+                
+                # Backward pass
+                self.optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.grad_clip)
+                self.optimizer.step()
+                
+                # Update progress bar
+                progress_bar.set_description(
+                    f"Loss: {loss.item():.4f}, "
+                    f"Token Acc: {total_correct/total_tokens:.4f}, "
+                    f"Seq Acc: {sequence_correct/total_sequences:.4f}"
+                )
+                
+                total_loss += loss.item()
+                
+                if self.global_step % 1000 == 0:
+                    self.log_sample_predictions(inputs[0], targets[0], predictions[0])
+                
+                if self.global_step % self.config.save_every == 0:
+                    self.save_checkpoint()
+                    
+                self.global_step += 1
             
-            # Forward pass
-            logits, loss = self.model(inputs, targets)
-            
-            # Apply padding mask to loss
-            loss = loss * padding_mask.view(-1)
-            loss = loss.sum() / padding_mask.sum()
-            
-            # Backward pass
-            self.optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.grad_clip)
-            self.optimizer.step()
-            
-            # Calculate metrics
-            predictions = logits.argmax(dim=-1)
-            total_correct += ((predictions == targets) * padding_mask).sum().item()
-            total_tokens += padding_mask.sum().item()
-            
-            # Sequence-level accuracy
-            sequence_match = ((predictions == targets) * padding_mask).all(dim=1)
-            sequence_correct += sequence_match.sum().item()
-            total_sequences += inputs.size(0)
-            
-            # Update progress bar
-            progress_bar.set_description(
-                f"Loss: {loss.item():.4f}, "
-                f"Token Acc: {total_correct/total_tokens:.4f}, "
-                f"Seq Acc: {sequence_correct/total_sequences:.4f}"
-            )
-            
-            self.global_step += 1
-            
-            # Log sample predictions periodically
-            if self.global_step % 1000 == 0:
-                self.log_sample_predictions(inputs[0], targets[0], predictions[0])
-            
-            # Save checkpoint
-            if self.global_step % self.config.save_every == 0:
-                self.save_checkpoint()
-        
-        return (total_loss / len(self.train_loader), 
-                total_correct / total_tokens,
-                sequence_correct / total_sequences)
+            return (total_loss / len(self.train_loader), 
+                    total_correct / total_tokens,
+                    sequence_correct / total_sequences)
     
     def log_sample_predictions(self, input_seq, target_seq, pred_seq):
         """Log a sample prediction for debugging"""
@@ -292,15 +291,21 @@ class Trainer:
             padding_mask = create_padding_mask(targets).to(self.config.device)
             
             logits, loss = self.model(inputs, targets)
-            loss = (loss * padding_mask.view(-1)).sum() / padding_mask.sum()
             
-            predictions = logits.argmax(dim=-1)
-            total_correct += ((predictions == targets) * padding_mask).sum().item()
-            total_tokens += padding_mask.sum().item()
-            
-            sequence_match = ((predictions == targets) * padding_mask).all(dim=1)
-            sequence_correct += sequence_match.sum().item()
-            total_sequences += inputs.size(0)
+            # Calculate masked loss and metrics
+            active_elements = padding_mask.sum()
+            if active_elements > 0:
+                loss = (loss * padding_mask.view(-1)).sum() / active_elements
+                
+                predictions = logits.argmax(dim=-1)
+                total_correct += ((predictions == targets) * padding_mask).sum().item()
+                total_tokens += active_elements.item()
+                
+                sequence_match = ((predictions == targets) * padding_mask).all(dim=1)
+                sequence_correct += sequence_match.sum().item()
+                total_sequences += inputs.size(0)
+                
+            total_loss += loss.item()
             
         return (total_loss / len(self.val_loader),
                 total_correct / total_tokens,
@@ -374,9 +379,6 @@ class Trainer:
         except KeyboardInterrupt:
             print("\nTraining interrupted by user")
             self.save_checkpoint()
-            
-            
-            
 
 def test_model_inference(trainer):
     """Test the trained model on a set of examples"""
@@ -425,7 +427,7 @@ def test_model_inference(trainer):
                 next_token = torch.multinomial(probs, num_samples=1)
                 
                 # Break if we generate END token
-                if next_token.item() == vocab['$']:  # Changed from '<END>' to '$'
+                if next_token.item() == vocab['$']:
                     generated = torch.cat([generated, next_token], dim=1)
                     break
                     
@@ -446,7 +448,7 @@ def test_model_inference(trainer):
                                   if l.strip() and l[0].isdigit()), None)
                 
                 if result_line:
-                    predicted = int(result_line.strip().replace('$', ''))  # Changed from '<END>' to '$'
+                    predicted = int(result_line.strip().replace('$', ''))
                     actual = num1 + num2
                     print(f"\nCarry steps found:")
                     for step in carry_steps:
@@ -469,5 +471,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
-    
