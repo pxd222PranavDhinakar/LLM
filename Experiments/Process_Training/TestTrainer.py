@@ -22,7 +22,7 @@ class Config:
         # Training Parameters
         self.batch_size = 64
         self.learning_rate = 1e-4
-        self.max_epochs = 20
+        self.max_epochs = 5
         self.warmup_steps = 2000
         self.grad_clip = 1.0
         
