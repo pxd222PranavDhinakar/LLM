@@ -58,22 +58,11 @@ class ProcessAdditionDataset(Dataset):
             'I': 21, 'n': 22, 'p': 23, 'u': 24, 't': 25,
             'T': 26, 'a': 27, 'r': 28, 'g': 29, 'e': 30,
             '.': 31,
-            '<END>': 32  # Added END token
+            '$': 32  # Using '$' as END token instead of '<END>'
         })
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
         self.pad_token = 0
-        
-        random.seed(seed)
-        self.data = self.generate_dataset()
-    
-    def get_number_range(self):
-        if self.curriculum_step == 0:
-            return 0, 4  # Start with small numbers
-        elif self.curriculum_step == 1:
-            return 0, 7  # Medium difficulty
-        else:
-            return 0, 9  # Full range
-    
+
     def generate_sequence(self, num1, num2):
         # Format validation
         if not (0 <= num1 <= 9 and 0 <= num2 <= 9):
@@ -89,7 +78,7 @@ class ProcessAdditionDataset(Dataset):
         
         # Format carry step and result
         step_str = f"A->{digit}, C->{carry}.\n"
-        result_str = f"{total}<END>"
+        result_str = f"{total}$"  # Using $ instead of <END>
         
         # Combine all parts
         complete_str = input_str + target_str + step_str + result_str
@@ -104,6 +93,15 @@ class ProcessAdditionDataset(Dataset):
                 return None
                 
         return torch.tensor(tokens, dtype=torch.long)
+    
+    def get_number_range(self):
+        if self.curriculum_step == 0:
+            return 0, 4  # Start with small numbers
+        elif self.curriculum_step == 1:
+            return 0, 7  # Medium difficulty
+        else:
+            return 0, 9  # Full range
+    
 
     def generate_dataset(self):
         data = []
@@ -420,7 +418,7 @@ def test_model_inference(trainer):
                 next_token = torch.multinomial(probs, num_samples=1)
                 
                 # Break if we generate END token
-                if next_token.item() == vocab['<END>']:
+                if next_token.item() == vocab['$']:  # Changed from '<END>' to '$'
                     generated = torch.cat([generated, next_token], dim=1)
                     break
                     
@@ -436,14 +434,12 @@ def test_model_inference(trainer):
             # Verify result
             try:
                 lines = output.split('\n')
-                # Find carry steps
                 carry_steps = [l for l in lines if l.startswith('A->')]
-                # Find final result
                 result_line = next((l for l in reversed(lines) 
                                   if l.strip() and l[0].isdigit()), None)
                 
                 if result_line:
-                    predicted = int(result_line.strip().replace('<END>', ''))
+                    predicted = int(result_line.strip().replace('$', ''))  # Changed from '<END>' to '$'
                     actual = num1 + num2
                     print(f"\nCarry steps found:")
                     for step in carry_steps:
