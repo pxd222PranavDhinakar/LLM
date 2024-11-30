@@ -58,10 +58,17 @@ class ProcessAdditionDataset(Dataset):
             'I': 21, 'n': 22, 'p': 23, 'u': 24, 't': 25,
             'T': 26, 'a': 27, 'r': 28, 'g': 29, 'e': 30,
             '.': 31,
-            '$': 32  # Using '$' as END token instead of '<END>'
+            '$': 32  # Using '$' as END token
         })
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
         self.pad_token = 0
+        
+        # Set random seed
+        random.seed(seed)
+        
+        # Generate the dataset
+        self.data = []  # Initialize data attribute first
+        self.data = self.generate_dataset()  # Then populate it
 
     def generate_sequence(self, num1, num2):
         # Format validation
