@@ -131,9 +131,9 @@ class Config:
         self.train_seed = 42
         self.val_seed = 43
         
-        self.curriculum_epochs = [0, 2, 4]  # When to increase difficulty
-        self.curriculum_samples = [5000, 7500, 10000]  # Samples per curriculum stage
-        self.curriculum_digit_ranges = [(0, 4), (0, 7), (0, 9)]  # Number ranges       
+        self.curriculum_epochs = [0, 2, 4, 6]  # Added a step at epoch 6
+        self.curriculum_samples = [5000, 7500, 10000, 12500]  # Incremental difficulty
+        self.curriculum_digit_ranges = [(0, 4), (0, 7), (0, 9), (0, 9)]  # Gradual digit increases    
          
         # Save Parameters
         self.save_dir = "checkpoints"

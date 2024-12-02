@@ -106,16 +106,18 @@ class AutoregressiveArithmeticTransformer(nn.Module):
             ArithmeticTransformerBlock(
                 embed_size, num_heads, head_size, ff_dim, max_length, dropout
             )
-            for _ in range(num_layers)
+            for _ in range(num_layers + 2)  # Increased from `num_layers` by 2
         ])
         self.ln_f = nn.LayerNorm(embed_size)
         self.ff_out = nn.Linear(embed_size, vocab_size)
+        self.temperature = temperature * 0.8  # Lowered temperature for coherence
         
-        # Save dimensions and parameters
-        self.max_length = max_length
+        # Add max_length attribute
+        self.max_length = max_length  # Initialize max_length
+        
+        # Add vocab_size attribute
         self.vocab_size = vocab_size
-        self.temperature = temperature
-        
+                
         # Special tokens
         self.carry_token = 14  # 'A' token for carry operations
         self.pad_token = 0     # padding token
@@ -150,12 +152,17 @@ class AutoregressiveArithmeticTransformer(nn.Module):
         # Create padding mask
         padding_mask = (targets != self.pad_token).float()
         
-        # Calculate weighted cross entropy loss with padding handling
+        # Calculate weighted cross-entropy loss with padding handling
         logits_flat = logits.reshape(-1, self.vocab_size)
         targets_flat = targets.reshape(-1)
         
         loss = F.cross_entropy(logits_flat, targets_flat, reduction='none')
         loss = (loss * padding_mask.view(-1)).sum() / (padding_mask.sum() + 1e-8)
+        
+        # **Add sequence mismatch penalty**
+        predictions = logits.argmax(dim=-1)
+        sequence_mismatch_penalty = ((predictions != targets) & (padding_mask.bool())).sum(dim=1).float().mean()
+        loss += 0.1 * sequence_mismatch_penalty  # Weight penalty by 0.1
         
         return logits, loss
 
