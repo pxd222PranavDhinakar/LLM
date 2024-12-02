@@ -1,3 +1,4 @@
+# NewArchitecture.py: Contains the new architecture for the Transformer model
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -29,9 +30,9 @@ class Head(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.head_size = head_size
         
-        # Register causal mask buffer
-        mask = torch.triu(torch.ones(max_length, max_length), diagonal=1).bool()
-        self.register_buffer("causal_mask", mask)
+        # Create and register causal mask buffer
+        causal_mask = torch.triu(torch.ones(max_length, max_length), diagonal=1).bool()
+        self.register_buffer("causal_mask", causal_mask)  # Changed 'mask' to 'causal_mask'
 
     def forward(self, x):
         B, T, C = x.shape
@@ -98,7 +99,7 @@ class ArithmeticTransformerBlock(nn.Module):
 
 class AutoregressiveArithmeticTransformer(nn.Module):
     def __init__(self, vocab_size, embed_size, num_heads, head_size, ff_dim,
-                 num_layers, max_length, dropout=0.1):
+                 num_layers, max_length, dropout=0.1, temperature=1.0):
         super().__init__()
         self.embedding = AbacusEmbedding(vocab_size, embed_size, max_length)
         self.blocks = nn.ModuleList([
@@ -110,9 +111,14 @@ class AutoregressiveArithmeticTransformer(nn.Module):
         self.ln_f = nn.LayerNorm(embed_size)
         self.ff_out = nn.Linear(embed_size, vocab_size)
         
-        # Save dimensions
+        # Save dimensions and parameters
         self.max_length = max_length
         self.vocab_size = vocab_size
+        self.temperature = temperature
+        
+        # Special tokens
+        self.carry_token = 14  # 'A' token for carry operations
+        self.pad_token = 0     # padding token
 
     def forward(self, x, targets=None):
         B, T = x.shape
@@ -125,19 +131,33 @@ class AutoregressiveArithmeticTransformer(nn.Module):
         for block in self.blocks:
             x = block(x)
         
-        # Final layer norm and projection
+        # Final layer norm and projection with temperature scaling
         x = self.ln_f(x)
-        logits = self.ff_out(x)
+        logits = self.ff_out(x) / self.temperature
+        
+        # Clamp logits to valid vocabulary range
+        logits = torch.clamp(logits, min=float('-inf'), max=float('inf'))
+        logits[..., self.vocab_size:] = float('-inf')  # Mask invalid tokens
         
         if targets is None:
             return logits
-        else:
-            # For training, compute cross entropy loss
-            B, T, C = logits.shape
-            logits = logits.view(B*T, C)
-            targets = targets.view(B*T)
-            loss = F.cross_entropy(logits, targets)
-            return logits.view(B, T, C), loss
+            
+        # Match sequence lengths if targets provided
+        min_len = min(logits.size(1), targets.size(1))
+        logits = logits[:, :min_len, :]
+        targets = targets[:, :min_len]
+        
+        # Create padding mask
+        padding_mask = (targets != self.pad_token).float()
+        
+        # Calculate weighted cross entropy loss with padding handling
+        logits_flat = logits.reshape(-1, self.vocab_size)
+        targets_flat = targets.reshape(-1)
+        
+        loss = F.cross_entropy(logits_flat, targets_flat, reduction='none')
+        loss = (loss * padding_mask.view(-1)).sum() / (padding_mask.sum() + 1e-8)
+        
+        return logits, loss
 
 def create_arithmetic_transformer(config):
     """Helper function to create model from config"""
@@ -149,5 +169,6 @@ def create_arithmetic_transformer(config):
         ff_dim=config.ff_dim,
         num_layers=config.num_layers,
         max_length=config.max_length,
-        dropout=config.dropout
+        dropout=config.dropout,
+        temperature=1.0  # default temperature
     )

@@ -1,0 +1,119 @@
+Intel MKL WARNING: Support of Intel(R) Streaming SIMD Extensions 4.2 (Intel(R) SSE4.2) enabled only processors has been deprecated. Intel oneAPI Math Kernel Library 2025.0 will require Intel(R) Advanced Vector Extensions (Intel(R) AVX) instructions.
+Intel MKL WARNING: Support of Intel(R) Streaming SIMD Extensions 4.2 (Intel(R) SSE4.2) enabled only processors has been deprecated. Intel oneAPI Math Kernel Library 2025.0 will require Intel(R) Advanced Vector Extensions (Intel(R) AVX) instructions.
+
+=== Configuration Verification ===
+
+Model Parameters:
+Vocabulary Size: 33 (Expected: 32)
+Embedding Size: 64 (Expected: 64)
+Number of Heads: 2 (Expected: 2)
+FF Dimension: 256 (Expected: 256)
+Number of Layers: 2 (Expected: 2)
+
+Training Parameters:
+Batch Size: 32 (Expected: 32)
+Learning Rate: 0.001 (Expected: 1e-3)
+Max Epochs: 10 (Expected: 10)
+
+Dataset Parameters:
+Training Samples: 10000
+Validation Samples: 1000
+Max Digit Range: 4
+
+=== Sequence Generation Verification ===
+
+Testing: 7 + 8 = 15
+Generated sequence:
+Input: 7+8
+Target:
+A->5, C->1
+A->1, C->0
+A->0, C->0.
+15$
+Number of carries: 1
+
+Testing: 99 + 1 = 100
+Generated sequence:
+Input: 99+1
+Target:
+A->0, C->1
+A->0, C->1
+A->1, C->0.
+100$
+Number of carries: 2
+
+Testing: 5 + 5 = 10
+Generated sequence:
+Input: 5+5
+Target:
+A->0, C->1
+A->1, C->0
+A->0, C->0.
+10$
+Number of carries: 1
+
+Testing: 0 + 9 = 9
+Generated sequence:
+Input: 0+9
+Target:
+A->9, C->0
+A->0, C->0
+A->0, C->0.
+9$
+Number of carries: 0
+
+Testing: 123 + 456 = 579
+Generated sequence:
+Input: 123+456
+Target:
+A->9, C->0
+A->7, C->0
+A->5, C->0.
+579$
+Number of carries: 0
+
+Testing: 999 + 1 = 1000
+Generated sequence:
+Input: 999+1
+Target:
+A->0, C->1
+A->0, C->1
+A->0, C->1.
+1000$
+Number of carries: 3
+
+=== Dataset Generation Verification ===
+
+Testing Curriculum Step 0
+
+Total samples generated: 5000
+
+Length Distribution:
+Length pair 1,1: 5000 samples (100.0%)
+
+Carry Distribution:
+0 carries: 5000 samples (100.0%)
+
+Testing Curriculum Step 1
+
+Total samples generated: 7500
+
+Length Distribution:
+Length pair 1,1: 7500 samples (100.0%)
+
+Carry Distribution:
+0 carries: 5698 samples (76.0%)
+1 carries: 1802 samples (24.0%)
+
+Testing Curriculum Step 2
+
+Total samples generated: 10000
+
+Length Distribution:
+Length pair 1,1: 10000 samples (100.0%)
+
+Carry Distribution:
+0 carries: 5500 samples (55.0%)
+1 carries: 4500 samples (45.0%)
+
+=== All Verification Checks Complete ===
